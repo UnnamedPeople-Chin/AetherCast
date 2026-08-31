@@ -73,7 +73,7 @@ let mouseHand = {
     ],
     isFist: false,
     isOpenPalm: true,
-    isWristTwisted: true, // Activated for mouse mode
+    isShieldTouch: true, // Activated for mouse mode
     isPinchTap: false,
     trail: []
 };
@@ -798,7 +798,7 @@ function updateHandTrackingInterpolation() {
             rawLandmarks: h.rawLandmarks,
             isFist: h.isFist,
             isOpenPalm: h.isOpenPalm,
-            isWristTwisted: h.isWristTwisted,
+            isShieldTouch: h.isShieldTouch,
             isPinchTap: h.isPinchTap
         }));
     } else {
@@ -814,7 +814,7 @@ function updateHandTrackingInterpolation() {
 
             currentHand.isFist = targetHand.isFist;
             currentHand.isOpenPalm = targetHand.isOpenPalm;
-            currentHand.isWristTwisted = targetHand.isWristTwisted;
+            currentHand.isShieldTouch = targetHand.isShieldTouch;
             currentHand.isPinchTap = targetHand.isPinchTap;
             currentHand.rawLandmarks = targetHand.rawLandmarks;
 
@@ -898,7 +898,7 @@ function render() {
             isDualFist = true;
             dualMidX = (p1.x + p2.x) / 2;
             dualMidY = (p1.y + p2.y) / 2;
-        } else if (h1.isOpenPalm && h2.isOpenPalm && h1.isWristTwisted && h2.isWristTwisted && handDistance < 500) {
+        } else if (h1.isOpenPalm && h2.isOpenPalm && h1.isShieldTouch && h2.isShieldTouch && handDistance < 500) {
             isDualShield = true;
             dualMidX = (p1.x + p2.x) / 2;
             dualMidY = (p1.y + p2.y) / 2;
@@ -984,8 +984,8 @@ function render() {
             drawCosmicEnergyOrb(ctx, indexX, indexY, pState.cosmicProgress);
         }
 
-        // DOCTOR STRANGE SHIELD TRIGGER REQUIREMENT: Open Palm AND Wrist Twist Rotation (90°)!
-        const isShieldActive = hand.isOpenPalm && hand.isWristTwisted && !hand.isFist;
+        // DOCTOR STRANGE SHIELD TRIGGER REQUIREMENT: Touch between Index Tip & Middle Tip!
+        const isShieldActive = hand.isShieldTouch && !hand.isFist;
         if (isShieldActive && !isDualShield) {
             pState.shieldProgress = Math.min(1.0, pState.shieldProgress + 0.08 * dtScale);
         } else {
@@ -1050,7 +1050,7 @@ function render() {
             }
         }
 
-        // INDIVIDUAL DOCTOR STRANGE SHIELD (Triggers ONLY when Wrist is Twisted 90°!)
+        // INDIVIDUAL DOCTOR STRANGE SHIELD (Triggers when Index Tip & Middle Tip Touch!)
         if (!isDualShield && pState.shieldProgress > 0.01) {
             ctx.save();
             ctx.globalCompositeOperation = 'lighter';
@@ -1083,7 +1083,7 @@ function render() {
 }
 
 // -------------------------------------------------------------
-// MediaPipe Detection Results (With Wrist Twist 90° Detection)
+// MediaPipe Detection Results (With Index + Middle Finger Touch Detection)
 // -------------------------------------------------------------
 function onHandResults(results) {
     targetHandsList = [];
@@ -1100,14 +1100,12 @@ function onHandResults(results) {
             const thumbTip = getCoord(landmarks[4]);
             const indexTip = getCoord(landmarks[8]);
             const indexPip = getCoord(landmarks[6]);
-            const indexMcp = getCoord(landmarks[5]);
             const middleTip = getCoord(landmarks[12]);
             const middlePip = getCoord(landmarks[10]);
             const ringTip = getCoord(landmarks[16]);
             const ringPip = getCoord(landmarks[14]);
             const pinkyTip = getCoord(landmarks[20]);
             const pinkyPip = getCoord(landmarks[18]);
-            const pinkyMcp = getCoord(landmarks[17]);
             const palmCenter = getCoord(landmarks[9]);
 
             const indexExt = dist(indexTip, wrist) > dist(indexPip, wrist) * 1.08;
@@ -1120,13 +1118,9 @@ function onHandResults(results) {
             const isFist = !indexExt && !middleExt && !ringExt && !pinkyExt;
             const isOpenPalm = extendedCount >= 2 && !isFist;
 
-            // WRIST TWIST ROTATION DETECTION (90° Rotation Angle Check)
-            const dxMcp = indexMcp.x - pinkyMcp.x;
-            const dyMcp = indexMcp.y - pinkyMcp.y;
-            const mcpAngle = Math.atan2(dyMcp, dxMcp); // Angle of knuckles line
-            
-            // Standard upright palm has mcpAngle near 0 or PI. Twisted palm has mcpAngle tilted (> 35 degrees / 0.6 rad)
-            const isWristTwisted = Math.abs(Math.sin(mcpAngle)) > 0.45;
+            // DOCTOR STRANGE SHIELD TRIGGER: Touch / Contact between Index Tip (8) and Middle Tip (12)!
+            const fingerTouchDist = dist(indexTip, middleTip);
+            const isShieldTouch = fingerTouchDist < 0.055 && !isFist;
 
             const pinchDist = dist(thumbTip, indexTip);
             const isPinchTap = pinchDist < 0.065 && !isFist;
@@ -1138,7 +1132,7 @@ function onHandResults(results) {
                 rawLandmarks: landmarks,
                 isFist,
                 isOpenPalm,
-                isWristTwisted,
+                isShieldTouch,
                 isPinchTap
             });
         });
