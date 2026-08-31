@@ -1,4 +1,4 @@
-// --- AETHERCAST: Next-Gen Cinematic Magic Engine (Ultra Realistic Visual Upgrade) ---
+// --- AETHERCAST: Next-Gen Cinematic Magic Engine (Authentic Rune Mandala Upgrade) ---
 
 // DOM Elements
 const canvas = document.getElementById('output_canvas');
@@ -34,7 +34,7 @@ const btnCloseGuide = document.getElementById('btn-close-guide');
 const btnToggleGuide = document.getElementById('btn-toggle-guide');
 
 // Application State
-let activeColorPalette = 'cyan';
+let activeColorPalette = 'gold'; // Default to Fiery Gold for Authentic Spell Look!
 let targetParticleCount = 500;
 let glowLevel = 2;
 let camTintLevel = 7;
@@ -52,7 +52,7 @@ let lastFpsUpdate = performance.now();
 let lastFrameTime = performance.now();
 let dtScale = 1.0;
 let screenFlashAlpha = 0;
-let screenFlashColor = '#00f2fe';
+let screenFlashColor = '#ff8c00';
 
 // Persistent State Tracking for Hands & Dual Fusions
 let trackedHands = []; 
@@ -80,8 +80,8 @@ let mouseHand = {
 
 // High-Fidelity Color Palette Definitions
 const PALETTES = {
+    gold: ['#ff3b00', '#ff8c00', '#ffc700', '#fff5a0', '#ffffff'],
     cyan: ['#00f2fe', '#4facfe', '#00d2ff', '#0284c7', '#ffffff'],
-    gold: ['#ff8c00', '#ffa500', '#f59e0b', '#fbbf24', '#ffffff'],
     purple: ['#d946ef', '#a855f7', '#8b5cf6', '#6366f1', '#ffffff'],
     emerald: ['#10b981', '#34d399', '#059669', '#047857', '#ffffff'],
     rainbow: ['#ef4444', '#f59e0b', '#10b981', '#06b6d4', '#6366f1', '#ec4899']
@@ -127,11 +127,11 @@ class Particle {
         this.y = originY !== undefined ? originY : Math.random() * canvas.height;
         
         const angle = fixedAngle !== null ? fixedAngle : Math.random() * Math.PI * 2;
-        const speed = (Math.random() * 5.5 + 2.5) * speedMultiplier;
+        const speed = (Math.random() * 6.0 + 2.5) * speedMultiplier;
         this.vx = Math.cos(angle) * speed;
         this.vy = Math.sin(angle) * speed;
         
-        this.size = Math.random() * 5.0 + 1.8;
+        this.size = Math.random() * 5.5 + 1.8;
         this.life = Math.random() * 0.75 + 0.45;
         this.maxLife = this.life;
         this.decay = Math.random() * 0.016 + 0.006;
@@ -203,7 +203,7 @@ function drawParticlesBatched(ctx) {
 }
 
 class Shockwave {
-    constructor(x, y, maxRadius = 500, color = '#00f2fe', initialWidth = 22) {
+    constructor(x, y, maxRadius = 520, color = '#ff8c00', initialWidth = 24) {
         this.x = x;
         this.y = y;
         this.radius = 15;
@@ -240,26 +240,26 @@ function triggerSupernovaExplosion(x, y, intensity = 1.0) {
     screenFlashAlpha = Math.min(0.75, 0.55 * intensity);
     screenFlashColor = colors[0];
 
-    shockwaves.push(new Shockwave(x, y, 520 * intensity, colors[0], 24));
-    shockwaves.push(new Shockwave(x, y, 380 * intensity, colors[1] || colors[0], 16));
-    shockwaves.push(new Shockwave(x, y, 250 * intensity, '#ffffff', 10));
+    shockwaves.push(new Shockwave(x, y, 540 * intensity, colors[0], 26));
+    shockwaves.push(new Shockwave(x, y, 400 * intensity, colors[1] || colors[0], 18));
+    shockwaves.push(new Shockwave(x, y, 260 * intensity, '#ffffff', 12));
 
-    const count = Math.floor(90 * intensity);
+    const count = Math.floor(100 * intensity);
     for (let i = 0; i < count; i++) {
         const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
         const p = new Particle();
-        p.reset(x, y, (Math.random() * 9 + 6.5) * intensity, angle);
+        p.reset(x, y, (Math.random() * 9.5 + 7) * intensity, angle);
         particles.push(p);
     }
 
-    const maxRadiusSq = (420 * intensity) * (420 * intensity);
+    const maxRadiusSq = (440 * intensity) * (440 * intensity);
     particles.forEach(p => {
         const dx = p.x - x;
         const dy = p.y - y;
         const distSq = dx * dx + dy * dy;
         if (distSq < maxRadiusSq && distSq > 1) {
             const d = Math.sqrt(distSq);
-            const force = (1 - d / (420 * intensity)) * 32 * intensity;
+            const force = (1 - d / (440 * intensity)) * 34 * intensity;
             p.vx += (dx / d) * force;
             p.vy += (dy / d) * force;
         }
@@ -421,108 +421,162 @@ function drawHandSkeleton(ctx, rawLandmarks, colors) {
 }
 
 // -------------------------------------------------------------
-// HIGH-FIDELITY DOCTOR STRANGE SHIELD RENDERER (3D MANDALA)
+// AUTHENTIC ANCIENT RUNE MANDALA SHIELD (MATCHING USER REFERENCE)
 // -------------------------------------------------------------
 let runeRotation = 0;
-function drawDoctorStrangeShield(ctx, x, y, baseRadius = 135, progress = 1.0) {
+function drawDoctorStrangeShield(ctx, x, y, baseRadius = 150, progress = 1.0) {
     if (progress <= 0.01) return;
 
     ctx.save();
     ctx.translate(x, y);
-    runeRotation += 0.02 * dtScale;
+    runeRotation += 0.018 * dtScale;
 
     const colors = PALETTES[activeColorPalette];
-    const mainColor = colors[0];
-    const secColor = colors[1] || colors[0];
-    const accColor = colors[2] || '#ffffff';
+    const mainColor = colors[0]; // Fiery Deep Red-Orange
+    const secColor = colors[1] || colors[0]; // Bright Orange Gold
+    const accColor = colors[2] || '#ffffff'; // White-Hot Highlight
 
     const radius = baseRadius * progress;
 
     ctx.globalCompositeOperation = 'lighter';
 
-    // 1. Fiery Outer Forcefield Wave Rings
-    const wavePulse = Math.sin(runeRotation * 3) * 6;
+    // 0. Soft Volumetric Back Glow
+    const backGlow = ctx.createRadialGradient(0, 0, radius * 0.2, 0, 0, radius * 1.35);
+    backGlow.addColorStop(0, secColor);
+    backGlow.addColorStop(0.6, mainColor);
+    backGlow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 1.35, 0, Math.PI * 2);
+    ctx.fillStyle = backGlow;
+    ctx.globalAlpha = 0.4 * progress;
+    ctx.fill();
+
+    // 1. Triple Concentric Outer Border Rings
+    ctx.globalAlpha = 0.95 * progress;
+
     ctx.strokeStyle = mainColor;
-    ctx.lineWidth = 3.5 * progress;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius + 10 + wavePulse, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.strokeStyle = secColor;
-    ctx.lineWidth = 2 * progress;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius + 2, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 4 * progress;
     ctx.beginPath();
     ctx.arc(0, 0, radius, 0, Math.PI * 2);
     ctx.stroke();
 
-    // 2. Rotating Inner Zodiac & Rune Rings (Dashed Energy Trails)
-    ctx.save();
-    ctx.rotate(-runeRotation * 1.2);
-    ctx.setLineDash([14, 18]);
-    ctx.lineWidth = 3 * progress;
     ctx.strokeStyle = secColor;
+    ctx.lineWidth = 2.5 * progress;
     ctx.beginPath();
-    ctx.arc(0, 0, radius * 0.86, 0, Math.PI * 2);
+    ctx.arc(0, 0, radius - 6, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.restore();
 
-    // 3. Eldritch Sacred Geometry Mandalas (Triple Rotated Octagrams)
+    ctx.strokeStyle = mainColor;
+    ctx.lineWidth = 3.5 * progress;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 0.84, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = secColor;
+    ctx.lineWidth = 2 * progress;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 0.78, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 2. Outer Rotating Rune Text Track (Authentic Asian/Ancient Arcane Ticks)
     ctx.save();
     ctx.rotate(runeRotation);
-    
-    ctx.lineWidth = 2.5 * progress;
-    ctx.strokeStyle = mainColor;
-    ctx.beginPath();
-    ctx.rect(-radius * 0.62, -radius * 0.62, radius * 1.24, radius * 1.24);
-    ctx.stroke();
-
-    ctx.rotate(Math.PI / 4);
-    ctx.strokeStyle = secColor;
-    ctx.beginPath();
-    ctx.rect(-radius * 0.62, -radius * 0.62, radius * 1.24, radius * 1.24);
-    ctx.stroke();
-
-    ctx.rotate(Math.PI / 8);
     ctx.strokeStyle = accColor;
-    ctx.lineWidth = 1.8 * progress;
+    ctx.lineWidth = 4 * progress;
+    ctx.setLineDash([8, 12, 18, 12]);
     ctx.beginPath();
-    for (let i = 0; i < 8; i++) {
-        const a = (i * Math.PI) / 4;
-        const rOuter = radius * 0.58;
-        const rInner = radius * 0.28;
-        const x1 = Math.cos(a) * rOuter;
-        const y1 = Math.sin(a) * rOuter;
-        const aNext = a + Math.PI / 8;
-        const x2 = Math.cos(aNext) * rInner;
-        const y2 = Math.sin(aNext) * rInner;
-        if (i === 0) ctx.moveTo(x1, y1);
-        else ctx.lineTo(x1, y1);
-        ctx.lineTo(x2, y2);
-    }
-    ctx.closePath();
+    ctx.arc(0, 0, radius - 3, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.rotate(-runeRotation * 2);
+    ctx.strokeStyle = secColor;
+    ctx.lineWidth = 3 * progress;
+    ctx.setLineDash([5, 10, 14, 8]);
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 0.81, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
 
-    // 4. Central Glowing Arcane Emblem
+    // 3. Dense Overlapping 10-Star Polygons (Matching User Image Structure)
+    ctx.save();
+    ctx.rotate(runeRotation * 0.7);
+    ctx.lineWidth = 2.2 * progress;
+
+    const starLayers = 6;
+    for (let s = 0; s < starLayers; s++) {
+        ctx.save();
+        ctx.rotate((s * Math.PI) / (starLayers * 2));
+        
+        ctx.strokeStyle = s % 2 === 0 ? secColor : mainColor;
+        ctx.beginPath();
+        ctx.rect(-radius * 0.54, -radius * 0.54, radius * 1.08, radius * 1.08);
+        ctx.stroke();
+
+        ctx.strokeStyle = accColor;
+        ctx.lineWidth = 1.2 * progress;
+        ctx.strokeRect(-radius * 0.53, -radius * 0.53, radius * 1.06, radius * 1.06);
+
+        ctx.restore();
+    }
+    ctx.restore();
+
+    // 4. Inner Ring Track & Mechanical Cog/Gear Core
+    ctx.strokeStyle = mainColor;
+    ctx.lineWidth = 3 * progress;
     ctx.beginPath();
-    ctx.arc(0, 0, radius * 0.22, 0, Math.PI * 2);
-    ctx.fillStyle = accColor;
-    ctx.globalAlpha = 0.85 * progress;
+    ctx.arc(0, 0, radius * 0.36, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = secColor;
+    ctx.lineWidth = 2 * progress;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 0.3, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner Mechanical Arcane Cog Teeth
+    ctx.save();
+    ctx.rotate(-runeRotation * 1.5);
+    ctx.strokeStyle = accColor;
+    ctx.lineWidth = 2.5 * progress;
+    const teeth = 16;
+    ctx.beginPath();
+    for (let t = 0; t < teeth; t++) {
+        const angle = (t * Math.PI * 2) / teeth;
+        const rInner = radius * 0.2;
+        const rOuter = radius * 0.28;
+        const x1 = Math.cos(angle) * rInner;
+        const y1 = Math.sin(angle) * rInner;
+        const x2 = Math.cos(angle) * rOuter;
+        const y2 = Math.sin(angle) * rOuter;
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // Central Bright Eye Singularity Void
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 0.12, 0, Math.PI * 2);
+    ctx.fillStyle = '#000000';
     ctx.fill();
 
-    // Controlled Sparkler Embers Burst
-    if (Math.random() < 0.35 && particles.length < targetParticleCount) {
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 0.08, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.restore();
+
+    // 5. Rich Fiery Embers & Spark Burst ("Efek Di-Ramein")
+    if (Math.random() < 0.65 && particles.length < targetParticleCount) {
         const sparkAngle = Math.random() * Math.PI * 2;
-        const sparkRadius = radius * (0.85 + Math.random() * 0.35);
+        const sparkRadius = radius * (0.8 + Math.random() * 0.4);
         const pX = x + Math.cos(sparkAngle) * sparkRadius;
         const pY = y + Math.sin(sparkAngle) * sparkRadius;
         const spark = new Particle();
-        spark.reset(pX, pY, 1.8);
+        spark.reset(pX, pY, 2.2);
         particles.push(spark);
     }
 
@@ -530,82 +584,106 @@ function drawDoctorStrangeShield(ctx, x, y, baseRadius = 135, progress = 1.0) {
 }
 
 // -------------------------------------------------------------
-// GIGA DUAL-HAND DOCTOR STRANGE SHIELD ARRAY FUSION
+// AUTHENTIC GIGA DUAL-HAND MULTIVERSE SHIELD ARRAY
 // -------------------------------------------------------------
 function drawGigaShield(ctx, x1, y1, x2, y2, midX, midY) {
-    const radius = 195;
+    const radius = 220;
     const colors = PALETTES[activeColorPalette];
     const mainColor = colors[0];
-    const secondaryColor = colors[1] || colors[0];
+    const secColor = colors[1] || colors[0];
+    const accColor = colors[2] || '#ffffff';
 
     ctx.save();
     
+    // Lightning Energy Tethers between hands
     ctx.save();
-    ctx.strokeStyle = mainColor;
-    ctx.lineWidth = 4;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = secColor;
+    ctx.lineWidth = 5;
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(midX, midY);
     ctx.lineTo(x2, y2);
     ctx.stroke();
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
     ctx.restore();
 
     ctx.translate(midX, midY);
-    runeRotation += 0.03 * dtScale;
+    runeRotation += 0.025 * dtScale;
 
+    ctx.globalCompositeOperation = 'lighter';
+
+    // Massive Multiverse Outer Outer Ring
     ctx.strokeStyle = mainColor;
-    ctx.lineWidth = 4;
-
+    ctx.lineWidth = 6;
     ctx.beginPath();
     ctx.arc(0, 0, radius, 0, Math.PI * 2);
     ctx.stroke();
 
+    ctx.strokeStyle = secColor;
+    ctx.lineWidth = 3.5;
     ctx.beginPath();
-    ctx.arc(0, 0, radius + 15, 0, Math.PI * 2);
-    ctx.setLineDash([12, 16]);
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = secondaryColor;
+    ctx.arc(0, 0, radius - 8, 0, Math.PI * 2);
     ctx.stroke();
 
+    // Rotating Outer Arcane Rune Characters Track
     ctx.save();
-    ctx.rotate(runeRotation);
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = mainColor;
-
-    for (let k = 0; k < 3; k++) {
-        ctx.rotate(Math.PI / 6);
-        ctx.beginPath();
-        ctx.rect(-radius * 0.55, -radius * 0.55, radius * 1.1, radius * 1.1);
-        ctx.stroke();
-    }
-
-    ctx.rotate(Math.PI / 12);
+    ctx.rotate(runeRotation * 1.2);
+    ctx.strokeStyle = accColor;
+    ctx.lineWidth = 5;
+    ctx.setLineDash([12, 16, 24, 16]);
     ctx.beginPath();
-    for (let i = 0; i < 12; i++) {
-        const a = (i * Math.PI) / 6;
-        const rOuter = radius * 0.5;
-        const rInner = radius * 0.22;
-        const px = Math.cos(a) * rOuter;
-        const py = Math.sin(a) * rOuter;
-        const aNext = a + Math.PI / 6;
-        const px2 = Math.cos(aNext) * rInner;
-        const py2 = Math.sin(aNext) * rInner;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-        ctx.lineTo(px2, py2);
-    }
-    ctx.closePath();
+    ctx.arc(0, 0, radius - 4, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
 
-    if (particles.length < targetParticleCount) {
-        for (let b = 0; b < 2; b++) {
-            const a = Math.random() * Math.PI * 2;
-            const r = radius * (0.8 + Math.random() * 0.4);
-            const p = new Particle();
-            p.reset(midX + Math.cos(a) * r, midY + Math.sin(a) * r, 2);
-            particles.push(p);
-        }
+    // Dense Overlapping Multiverse Star Array
+    ctx.save();
+    ctx.rotate(-runeRotation);
+    const layers = 8;
+    for (let l = 0; l < layers; l++) {
+        ctx.save();
+        ctx.rotate((l * Math.PI) / (layers * 2));
+        ctx.strokeStyle = l % 2 === 0 ? secColor : mainColor;
+        ctx.lineWidth = 2.5;
+        ctx.strokeRect(-radius * 0.54, -radius * 0.54, radius * 1.08, radius * 1.08);
+        ctx.restore();
+    }
+    ctx.restore();
+
+    // Core Mechanical Cog & Eye
+    ctx.strokeStyle = mainColor;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 0.35, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.save();
+    ctx.rotate(runeRotation * 2);
+    ctx.strokeStyle = accColor;
+    ctx.lineWidth = 3;
+    const teeth = 20;
+    ctx.beginPath();
+    for (let t = 0; t < teeth; t++) {
+        const angle = (t * Math.PI * 2) / teeth;
+        const rInner = radius * 0.22;
+        const rOuter = radius * 0.32;
+        ctx.moveTo(Math.cos(angle) * rInner, Math.sin(angle) * rInner);
+        ctx.lineTo(Math.cos(angle) * rOuter, Math.sin(angle) * rOuter);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // Intense Giga Embers Explosion
+    for (let b = 0; b < 4; b++) {
+        const a = Math.random() * Math.PI * 2;
+        const r = radius * (0.7 + Math.random() * 0.5);
+        const p = new Particle();
+        p.reset(midX + Math.cos(a) * r, midY + Math.sin(a) * r, 2.5);
+        particles.push(p);
     }
 
     ctx.restore();
@@ -1105,7 +1183,7 @@ function render() {
         if (!isDualShield && pState.shieldProgress > 0.01) {
             ctx.save();
             ctx.globalCompositeOperation = 'lighter';
-            drawDoctorStrangeShield(ctx, palmX, palmY, 135, pState.shieldProgress);
+            drawDoctorStrangeShield(ctx, palmX, palmY, 150, pState.shieldProgress);
             ctx.restore();
         }
     });
