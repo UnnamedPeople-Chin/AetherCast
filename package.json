@@ -1,0 +1,22 @@
+{
+  "name": "air-magic-desktop",
+  "version": "1.0.0",
+  "description": "Air Magic Hand Tracking Particle Sandbox Desktop Application",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron ."
+  },
+  "keywords": [
+    "mediapipe",
+    "hand-tracking",
+    "particle",
+    "sandbox",
+    "electron"
+  ],
+  "author": "Antigravity",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.2.0"
+  }
+}

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Air Magic - Interactive Hand Tracking & Particle Sandbox</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;900&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Fix Electron UMD Node Module Interference for MediaPipe CDN -->
+    <script>
+        if (typeof module === 'object') {
+            window.electronModule = module;
+            delete module;
+        }
+    </script>
+
+    <!-- MediaPipe Scripts CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <!-- Restore Electron Module Object -->
+    <script>
+        if (window.electronModule) {
+            window.module = window.electronModule;
+        }
+    </script>
+</head>
+<body>
+    <!-- Background Canvas for Visual Effects & Video Overlay -->
+    <canvas id="output_canvas"></canvas>
+
+    <!-- Hidden Video Element for MediaPipe Input -->
+    <video id="input_video" playsinline></video>
+
+    <!-- Top Header Overlay -->
+    <header class="app-header">
+        <div class="brand">
+            <i class="fa-solid fa-hand-sparkles brand-icon"></i>
+            <div>
+                <h1>AIR MAGIC</h1>
+                <p>Realtime Hand-Tracking Sandbox</p>
+            </div>
+        </div>
+        
+        <div class="header-badges">
+            <div id="status-badge" class="badge warning">
+                <span class="pulse-dot"></span>
+                <span id="status-text">Memuat Hand Tracking...</span>
+            </div>
+            <div class="badge info">
+                <i class="fa-solid fa-gauge-high"></i>
+                <span id="fps-counter">60 FPS</span>
+            </div>
+            <button id="btn-toggle-guide" class="badge-btn" title="Panduan Gestur Tangan">
+                <i class="fa-solid fa-circle-question"></i>
+                <span>Panduan</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Floating Trigger Button when Panel is Collapsed -->
+    <button id="btn-show-panel" class="floating-panel-btn hidden" title="Buka Panel Kontrol">
+        <i class="fa-solid fa-sliders"></i>
+        <span>Pengaturan Visual</span>
+    </button>
+
+    <!-- Controls Panel Overlay (Collapsible) -->
+    <div class="controls-overlay" id="controls-panel">
+        <div class="panel-header">
+            <span class="section-title"><i class="fa-solid fa-sliders"></i> Panel Kontrol Sihir</span>
+            <button id="btn-minimize-panel" class="icon-btn" title="Sembunyikan Panel"><i class="fa-solid fa-chevron-left"></i></button>
+        </div>
+
+        <!-- Visual Settings -->
+        <div class="panel-section">
+            <span class="sub-title"><i class="fa-solid fa-palette"></i> Kustomisasi Visual</span>
+            
+            <div class="slider-group">
+                <div class="slider-label">
+                    <span>Warna Neon Palette</span>
+                    <span id="color-val-display">CYAN</span>
+                </div>
+                <div class="color-presets">
+                    <button class="color-btn active" data-color="cyan" style="background: linear-gradient(135deg, #00f2fe, #4facfe);"></button>
+                    <button class="color-btn" data-color="gold" style="background: linear-gradient(135deg, #ff0844, #ffb199);"></button>
+                    <button class="color-btn" data-color="purple" style="background: linear-gradient(135deg, #b224ef, #7579ff);"></button>
+                    <button class="color-btn" data-color="emerald" style="background: linear-gradient(135deg, #0ba360, #3cba92);"></button>
+                    <button class="color-btn" data-color="rainbow" style="background: linear-gradient(135deg, red, yellow, green, cyan, blue, magenta);"></button>
+                </div>
+            </div>
+
+            <div class="slider-group">
+                <div class="slider-label">
+                    <span>Intensitas Partikel</span>
+                    <span id="particle-count-display">500</span>
+                </div>
+                <input type="range" id="slider-particles" min="100" max="800" value="500" step="50">
+            </div>
+
+            <div class="slider-group">
+                <div class="slider-label">
+                    <span>Kegelapan Webcam</span>
+                    <span id="cam-tint-display">Sangat Gelap (70%)</span>
+                </div>
+                <input type="range" id="slider-cam-tint" min="0" max="9" value="7" step="1">
+            </div>
+
+            <div class="slider-group">
+                <div class="slider-label">
+                    <span>Ukuran Glow & Spark</span>
+                    <span id="glow-display">Sedang</span>
+                </div>
+                <input type="range" id="slider-glow" min="1" max="3" value="2" step="1">
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="panel-section actions-row">
+            <button id="btn-webcam" class="action-btn primary">
+                <i class="fa-solid fa-camera"></i>
+                <span>Aktifkan Webcam</span>
+            </button>
+            <button id="btn-view-mode" class="action-btn secondary">
+                <i class="fa-solid fa-expand"></i>
+                <span>Mode: Fullscreen</span>
+            </button>
+        </div>
+        <div class="panel-section actions-row" style="margin-top: -6px;">
+            <button id="btn-skeleton" class="action-btn secondary active">
+                <i class="fa-solid fa-hand"></i>
+                <span>Energy Skeleton</span>
+            </button>
+            <button id="btn-mouse" class="action-btn secondary">
+                <i class="fa-solid fa-computer-mouse"></i>
+                <span>Mouse Control</span>
+            </button>
+        </div>
+        <div class="panel-section actions-row" style="margin-top: -6px;">
+            <button id="btn-mirror" class="action-btn secondary active">
+                <i class="fa-solid fa-arrows-rotate"></i>
+                <span>Mirror Camera</span>
+            </button>
+            <button id="btn-clear" class="action-btn secondary">
+                <i class="fa-solid fa-trash-can"></i>
+                <span>Clear Screen</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Instructions Overlay / Gestures Guide -->
+    <div class="gesture-guide hidden" id="gesture-guide">
+        <div class="guide-header">
+            <span><i class="fa-solid fa-hand-pointer"></i> Panduan Dual-Hand Fusion</span>
+            <button id="btn-close-guide"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="guide-content">
+            <div class="guide-item">
+                <i class="fa-solid fa-hand-back-fist"></i>
+                <div>
+                    <strong>Dual Blackhole Fusion (2 Kepalan)</strong>
+                    <p>Dekatkan 2 tangan mengepal untuk memicu SUPERMASSIVE GIGA BLACKHOLE!</p>
+                </div>
+            </div>
+            <div class="guide-item">
+                <i class="fa-solid fa-hand"></i>
+                <div>
+                    <strong>Dual Giga Shield Array (2 Telapak)</strong>
+                    <p>Dekatkan 2 telapak tangan terbuka untuk memicu MULTIVERSE SHIELD ARRAY!</p>
+                </div>
+            </div>
+            <div class="guide-item">
+                <i class="fa-solid fa-burst"></i>
+                <div>
+                    <strong>Mega Supernova Explosion</strong>
+                    <p>Lepas genggaman Dual Blackhole untuk memicu LEDAKAN MEGA SUPERNOVA!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- App Script -->
+    <script src="app.js"></script>
+</body>
+</html>

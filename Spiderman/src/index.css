@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+/* Custom glowing effects and animations */
+@keyframes glowPulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.4));
+  }
+  50% {
+    filter: drop-shadow(0 0 25px rgba(59, 130, 246, 0.6));
+  }
+}
+
+.spidey-glow {
+  animation: glowPulse 3s infinite ease-in-out;
+}
