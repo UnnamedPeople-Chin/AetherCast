@@ -1,7 +1,7 @@
 {
-  "name": "air-magic-desktop",
+  "name": "aethercast",
   "version": "1.0.0",
-  "description": "Air Magic Hand Tracking Particle Sandbox Desktop Application",
+  "description": "AetherCast Hand Tracking Particle Sandbox Desktop Application",
   "main": "main.js",
   "scripts": {
     "start": "electron .",

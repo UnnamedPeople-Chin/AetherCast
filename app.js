@@ -1,4 +1,4 @@
-// --- AIR MAGIC: Interstellar Gargantua Blackhole & Hand Tracking Engine (Ultra Optimized) ---
+// --- AETHERCAST: Interstellar Gargantua Blackhole & Hand Tracking Engine (Ultra Optimized) ---
 
 // DOM Elements
 const canvas = document.getElementById('output_canvas');

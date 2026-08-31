@@ -11,7 +11,7 @@ function createWindow() {
     const win = new BrowserWindow({
         width: 1280,
         height: 800,
-        title: 'Air Magic - Hand Tracking Sandbox',
+        title: 'AetherCast - Hand Tracking Sandbox',
         autoHideMenuBar: true,
         webPreferences: {
             nodeIntegration: false,
