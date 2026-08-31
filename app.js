@@ -1,4 +1,4 @@
-// --- AETHERCAST: Next-Gen Cinematic Magic Engine (Authentic Rune Mandala Upgrade) ---
+// --- AETHERCAST: Next-Gen Cinematic Magic Engine (Ultra Optimized & Randomized Palette) ---
 
 // DOM Elements
 const canvas = document.getElementById('output_canvas');
@@ -33,8 +33,31 @@ const gestureGuide = document.getElementById('gesture-guide');
 const btnCloseGuide = document.getElementById('btn-close-guide');
 const btnToggleGuide = document.getElementById('btn-toggle-guide');
 
+// High-Fidelity Color Palette Definitions
+const PALETTES = {
+    gold: ['#ff3b00', '#ff8c00', '#ffc700', '#fff5a0', '#ffffff'],
+    cyan: ['#00f2fe', '#4facfe', '#00d2ff', '#0284c7', '#ffffff'],
+    purple: ['#d946ef', '#a855f7', '#8b5cf6', '#6366f1', '#ffffff'],
+    emerald: ['#10b981', '#34d399', '#059669', '#047857', '#ffffff'],
+    rainbow: ['#ef4444', '#f59e0b', '#10b981', '#06b6d4', '#6366f1', '#ec4899']
+};
+
+// RANDOM PALETTE SELECTION ON EACH LAUNCH / REFRESH
+const paletteKeys = Object.keys(PALETTES);
+let activeColorPalette = paletteKeys[Math.floor(Math.random() * paletteKeys.length)];
+
+// Synchronize UI with Random Palette
+function syncPaletteUI() {
+    colorBtns.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.color === activeColorPalette);
+    });
+    if (colorValDisplay) {
+        colorValDisplay.textContent = activeColorPalette.toUpperCase();
+    }
+}
+syncPaletteUI();
+
 // Application State
-let activeColorPalette = 'gold'; // Default to Fiery Gold for Authentic Spell Look!
 let targetParticleCount = 500;
 let glowLevel = 2;
 let camTintLevel = 7;
@@ -52,7 +75,7 @@ let lastFpsUpdate = performance.now();
 let lastFrameTime = performance.now();
 let dtScale = 1.0;
 let screenFlashAlpha = 0;
-let screenFlashColor = '#ff8c00';
+let screenFlashColor = PALETTES[activeColorPalette][0];
 
 // Persistent State Tracking for Hands & Dual Fusions
 let trackedHands = []; 
@@ -76,15 +99,6 @@ let mouseHand = {
     isShieldTouch: true,
     isPinchTap: false,
     trail: []
-};
-
-// High-Fidelity Color Palette Definitions
-const PALETTES = {
-    gold: ['#ff3b00', '#ff8c00', '#ffc700', '#fff5a0', '#ffffff'],
-    cyan: ['#00f2fe', '#4facfe', '#00d2ff', '#0284c7', '#ffffff'],
-    purple: ['#d946ef', '#a855f7', '#8b5cf6', '#6366f1', '#ffffff'],
-    emerald: ['#10b981', '#34d399', '#059669', '#047857', '#ffffff'],
-    rainbow: ['#ef4444', '#f59e0b', '#10b981', '#06b6d4', '#6366f1', '#ec4899']
 };
 
 const HAND_CONNECTIONS = [
@@ -131,7 +145,7 @@ class Particle {
         this.vx = Math.cos(angle) * speed;
         this.vy = Math.sin(angle) * speed;
         
-        this.size = Math.random() * 5.5 + 1.8;
+        this.size = Math.random() * 5.0 + 1.8;
         this.life = Math.random() * 0.75 + 0.45;
         this.maxLife = this.life;
         this.decay = Math.random() * 0.016 + 0.006;
@@ -432,9 +446,9 @@ function drawDoctorStrangeShield(ctx, x, y, baseRadius = 150, progress = 1.0) {
     runeRotation += 0.018 * dtScale;
 
     const colors = PALETTES[activeColorPalette];
-    const mainColor = colors[0]; // Fiery Deep Red-Orange
-    const secColor = colors[1] || colors[0]; // Bright Orange Gold
-    const accColor = colors[2] || '#ffffff'; // White-Hot Highlight
+    const mainColor = colors[0];
+    const secColor = colors[1] || colors[0];
+    const accColor = colors[2] || '#ffffff';
 
     const radius = baseRadius * progress;
 
@@ -616,7 +630,7 @@ function drawGigaShield(ctx, x1, y1, x2, y2, midX, midY) {
 
     ctx.globalCompositeOperation = 'lighter';
 
-    // Massive Multiverse Outer Outer Ring
+    // Massive Multiverse Outer Ring
     ctx.strokeStyle = mainColor;
     ctx.lineWidth = 6;
     ctx.beginPath();
@@ -874,11 +888,11 @@ function drawGigaBlackhole(ctx, x1, y1, x2, y2, midX, midY, chargeRatio = 0, bir
 function drawMiniMonitor(ctx) {
     if (!isCameraActive || videoElement.readyState < 2) return;
 
-    const pipW = 280;
-    const pipH = 175;
-    const pipX = canvas.width - pipW - 20;
-    const pipY = canvas.height - pipH - 20;
-    const radius = 14;
+    const pipW = 220;
+    const pipH = 135;
+    const pipX = canvas.width - pipW - 16;
+    const pipY = canvas.height - pipH - 16;
+    const radius = 10;
 
     ctx.save();
     
@@ -902,11 +916,10 @@ function drawMiniMonitor(ctx) {
 
     ctx.save();
     ctx.fillStyle = 'rgba(7, 9, 19, 0.7)';
-    ctx.fillRect(pipX + 10, pipY + 10, 140, 26);
-    ctx.borderRadius = 12;
+    ctx.fillRect(pipX + 8, pipY + 8, 120, 22);
     ctx.fillStyle = '#34d399';
-    ctx.font = '600 11px Outfit, sans-serif';
-    ctx.fillText(`● WEBCAM MONITOR`, pipX + 18, pipY + 27);
+    ctx.font = '600 9.5px Outfit, sans-serif';
+    ctx.fillText(`● WEBCAM MONITOR`, pipX + 14, pipY + 22);
     ctx.restore();
 }
 
@@ -1413,6 +1426,7 @@ colorBtns.forEach(btn => {
         colorBtns.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         activeColorPalette = btn.dataset.color;
+        screenFlashColor = PALETTES[activeColorPalette][0];
         colorValDisplay.textContent = btn.dataset.color.toUpperCase();
     });
 });

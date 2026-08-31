@@ -1,15 +1,15 @@
 :root {
     --bg-dark: #070913;
-    --card-bg: rgba(15, 23, 42, 0.72);
-    --card-border: rgba(255, 255, 255, 0.12);
+    --card-bg: rgba(10, 15, 30, 0.72);
+    --card-border: rgba(255, 255, 255, 0.1);
     --primary-cyan: #00f2fe;
     --primary-blue: #4facfe;
     --text-main: #f8fafc;
     --text-muted: #94a3b8;
-    --accent-glow: rgba(0, 242, 254, 0.35);
-    --radius-lg: 20px;
-    --radius-md: 12px;
-    --radius-sm: 8px;
+    --accent-glow: rgba(0, 242, 254, 0.3);
+    --radius-lg: 16px;
+    --radius-md: 10px;
+    --radius-sm: 6px;
 }
 
 * {
@@ -47,9 +47,9 @@ body, html {
 /* Header Styling */
 .app-header {
     position: absolute;
-    top: 20px;
-    left: 20px;
-    right: 20px;
+    top: 14px;
+    left: 14px;
+    right: 14px;
     z-index: 10;
     display: flex;
     justify-content: space-between;
@@ -60,43 +60,43 @@ body, html {
 .brand {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 10px;
     background: var(--card-bg);
     border: 1px solid var(--card-border);
     backdrop-filter: blur(16px);
-    padding: 10px 20px;
-    border-radius: var(--radius-lg);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    padding: 6px 14px;
+    border-radius: 50px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
     pointer-events: auto;
 }
 
 .brand-icon {
-    font-size: 1.8rem;
+    font-size: 1.2rem;
     background: linear-gradient(135deg, var(--primary-cyan), var(--primary-blue));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    filter: drop-shadow(0 0 10px rgba(0, 242, 254, 0.6));
+    filter: drop-shadow(0 0 8px rgba(0, 242, 254, 0.5));
 }
 
 .brand h1 {
     font-family: 'Space Grotesk', sans-serif;
-    font-size: 1.25rem;
+    font-size: 0.95rem;
     font-weight: 700;
-    letter-spacing: 2px;
+    letter-spacing: 1.5px;
     background: linear-gradient(135deg, #ffffff, #94a3b8);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
 .brand p {
-    font-size: 0.75rem;
+    font-size: 0.65rem;
     color: var(--text-muted);
     font-weight: 400;
 }
 
 .header-badges {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     align-items: center;
     pointer-events: auto;
 }
@@ -104,15 +104,15 @@ body, html {
 .badge, .badge-btn {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
+    gap: 6px;
+    padding: 6px 12px;
     background: var(--card-bg);
     border: 1px solid var(--card-border);
     backdrop-filter: blur(16px);
     border-radius: 50px;
-    font-size: 0.82rem;
+    font-size: 0.75rem;
     font-weight: 600;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
 .badge-btn {
@@ -124,7 +124,7 @@ body, html {
 
 .badge-btn:hover {
     background: rgba(0, 242, 254, 0.15);
-    transform: scale(1.05);
+    transform: scale(1.04);
 }
 
 .badge.warning {
@@ -143,11 +143,11 @@ body, html {
 }
 
 .pulse-dot {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
     background-color: currentColor;
-    box-shadow: 0 0 10px currentColor;
+    box-shadow: 0 0 8px currentColor;
     animation: pulse 1.5s infinite;
 }
 
@@ -160,65 +160,65 @@ body, html {
 /* Floating Trigger Button when Left Panel is Minimized */
 .floating-panel-btn {
     position: absolute;
-    bottom: 20px;
-    left: 20px;
+    bottom: 16px;
+    left: 16px;
     z-index: 10;
-    padding: 12px 20px;
+    padding: 8px 14px;
     background: var(--card-bg);
     border: 1px solid var(--primary-cyan);
-    backdrop-filter: blur(20px);
+    backdrop-filter: blur(16px);
     border-radius: 50px;
     color: var(--primary-cyan);
-    font-weight: 700;
-    font-size: 0.85rem;
+    font-weight: 600;
+    font-size: 0.75rem;
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 10px;
-    box-shadow: 0 8px 32px var(--accent-glow);
+    gap: 8px;
+    box-shadow: 0 4px 16px var(--accent-glow);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .floating-panel-btn.hidden {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(16px);
     pointer-events: none;
 }
 
 .floating-panel-btn:hover {
-    transform: scale(1.06);
+    transform: scale(1.05);
     background: rgba(0, 242, 254, 0.2);
 }
 
-/* Controls Panel Overlay (Collapsible) */
+/* Controls Panel Overlay (Ultra Compact & Minimal) */
 .controls-overlay {
     position: absolute;
-    bottom: 20px;
-    left: 20px;
+    bottom: 16px;
+    left: 16px;
     z-index: 10;
-    width: 350px;
-    max-width: calc(100vw - 40px);
-    max-height: calc(100vh - 100px);
+    width: 250px;
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 80px);
     overflow-y: auto;
     background: var(--card-bg);
     border: 1px solid var(--card-border);
     backdrop-filter: blur(20px);
-    border-radius: var(--radius-lg);
-    padding: 16px 18px;
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
-    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    gap: 10px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Scrollbar styling for controls */
 .controls-overlay::-webkit-scrollbar {
-    width: 4px;
+    width: 3px;
 }
 .controls-overlay::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.15);
-    border-radius: 4px;
+    border-radius: 3px;
 }
 
 .controls-overlay.collapsed {
@@ -232,35 +232,37 @@ body, html {
     justify-content: space-between;
     align-items: center;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    padding-bottom: 10px;
+    padding-bottom: 6px;
 }
 
 .section-title {
-    font-size: 0.9rem;
+    font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 0.8px;
     color: var(--text-main);
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
 }
 
 .section-title i {
     color: var(--primary-cyan);
+    font-size: 0.75rem;
 }
 
 .icon-btn {
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 255, 255, 0.1);
     color: var(--text-muted);
-    width: 30px;
-    height: 30px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
+    font-size: 0.65rem;
     transition: all 0.2s ease;
 }
 
@@ -272,94 +274,50 @@ body, html {
 .panel-section {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
 }
 
 .sub-title {
-    font-size: 0.78rem;
+    font-size: 0.68rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 0.8px;
     color: var(--text-muted);
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
 }
 
 .sub-title i {
     color: var(--primary-cyan);
-}
-
-/* Mode Buttons */
-.mode-buttons {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-}
-
-.mode-btn {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: var(--text-muted);
-    padding: 10px 12px;
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.mode-btn[data-mode="all"] {
-    grid-column: span 2;
-    background: linear-gradient(135deg, rgba(0, 242, 254, 0.15), rgba(178, 36, 239, 0.15));
-    border-color: rgba(0, 242, 254, 0.3);
-}
-
-.mode-btn i {
-    font-size: 1rem;
-}
-
-.mode-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--text-main);
-    border-color: rgba(255, 255, 255, 0.2);
-}
-
-.mode-btn.active {
-    background: linear-gradient(135deg, rgba(0, 242, 254, 0.25), rgba(79, 172, 254, 0.15));
-    border-color: var(--primary-cyan);
-    color: var(--primary-cyan);
-    box-shadow: 0 0 16px var(--accent-glow);
+    font-size: 0.68rem;
 }
 
 /* Sliders & Presets */
 .slider-group {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 3px;
 }
 
 .slider-label {
     display: flex;
     justify-content: space-between;
-    font-size: 0.8rem;
+    font-size: 0.68rem;
     color: var(--text-main);
 }
 
 .color-presets {
     display: flex;
-    gap: 8px;
-    margin-top: 2px;
+    gap: 6px;
+    margin-top: 1px;
 }
 
 .color-btn {
-    width: 28px;
-    height: 28px;
+    width: 20px;
+    height: 20px;
     border-radius: 50%;
-    border: 2px solid transparent;
+    border: 1.5px solid transparent;
     cursor: pointer;
     transition: transform 0.2s ease, border-color 0.2s ease;
 }
@@ -370,13 +328,13 @@ body, html {
 
 .color-btn.active {
     border-color: #ffffff;
-    box-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.7);
 }
 
 input[type="range"] {
     width: 100%;
-    height: 5px;
-    border-radius: 3px;
+    height: 4px;
+    border-radius: 2px;
     background: rgba(255, 255, 255, 0.1);
     outline: none;
     accent-color: var(--primary-cyan);
@@ -386,44 +344,44 @@ input[type="range"] {
 /* Actions Row */
 .actions-row {
     display: flex;
-    gap: 8px;
+    gap: 5px;
 }
 
 .action-btn {
     flex: 1;
-    padding: 10px 12px;
-    border-radius: var(--radius-md);
+    padding: 6px 8px;
+    border-radius: var(--radius-sm);
     border: none;
     font-weight: 600;
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    transition: all 0.25s ease;
+    gap: 5px;
+    transition: all 0.2s ease;
 }
 
 .action-btn.primary {
     background: linear-gradient(135deg, var(--primary-cyan), var(--primary-blue));
     color: #030712;
     font-weight: 700;
-    box-shadow: 0 4px 16px var(--accent-glow);
+    box-shadow: 0 2px 10px var(--accent-glow);
 }
 
 .action-btn.primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0, 242, 254, 0.6);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(0, 242, 254, 0.6);
 }
 
 .action-btn.secondary {
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.05);
     color: var(--text-main);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .action-btn.secondary:hover {
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.1);
 }
 
 .action-btn.secondary.active {
@@ -434,23 +392,23 @@ input[type="range"] {
 /* Gesture Guide Overlay */
 .gesture-guide {
     position: absolute;
-    top: 75px;
-    right: 20px;
+    top: 60px;
+    right: 14px;
     z-index: 10;
-    width: 300px;
-    max-width: calc(100vw - 40px);
+    width: 270px;
+    max-width: calc(100vw - 32px);
     background: var(--card-bg);
     border: 1px solid var(--card-border);
     backdrop-filter: blur(20px);
-    border-radius: var(--radius-lg);
-    padding: 16px;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
     transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 .gesture-guide.hidden {
     opacity: 0;
-    transform: translateY(-15px);
+    transform: translateY(-10px);
     pointer-events: none;
 }
 
@@ -458,71 +416,52 @@ input[type="range"] {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 6px;
+    font-size: 0.75rem;
     font-weight: 700;
-    font-size: 0.9rem;
-    margin-bottom: 12px;
     color: var(--primary-cyan);
 }
 
 .guide-header button {
-    background: none;
+    background: transparent;
     border: none;
     color: var(--text-muted);
-    font-size: 1.1rem;
+    font-size: 0.8rem;
     cursor: pointer;
 }
 
 .guide-header button:hover {
-    color: #fff;
+    color: #ffffff;
 }
 
 .guide-content {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
+    margin-top: 8px;
 }
 
 .guide-item {
     display: flex;
-    gap: 12px;
     align-items: flex-start;
+    gap: 8px;
 }
 
 .guide-item i {
-    font-size: 1.2rem;
-    color: var(--primary-blue);
-    background: rgba(0, 242, 254, 0.1);
-    padding: 8px;
-    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    color: var(--primary-cyan);
+    margin-top: 2px;
 }
 
 .guide-item strong {
-    font-size: 0.85rem;
+    font-size: 0.72rem;
     color: var(--text-main);
     display: block;
 }
 
 .guide-item p {
-    font-size: 0.75rem;
+    font-size: 0.65rem;
     color: var(--text-muted);
-    margin-top: 2px;
-}
-
-/* Responsive adjust */
-@media (max-width: 768px) {
-    .app-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
-    }
-    .controls-overlay {
-        width: calc(100vw - 32px);
-        left: 16px;
-        bottom: 16px;
-    }
-    .gesture-guide {
-        width: calc(100vw - 32px);
-        right: 16px;
-        top: 130px;
-    }
+    line-height: 1.3;
 }
