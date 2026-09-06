@@ -1,11 +1,9 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 
-// Hardware Acceleration GPU Flags (Smooth 60-144 FPS VSync Match)
+// Safe GPU Acceleration Flags (Prevents Windows MediaFoundation DirectShow Camera Freezes)
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
-app.commandLine.appendSwitch('enable-zero-copy');
-app.commandLine.appendSwitch('enable-hardware-overlays');
 
 function createWindow() {
     const win = new BrowserWindow({

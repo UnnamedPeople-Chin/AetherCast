@@ -1268,26 +1268,74 @@ function onHandResults(results) {
 }
 
 // -------------------------------------------------------------
-// DECOUPLED ASYNC MEDIAPIPE DETECTION LOOP
+// DECOUPLED ASYNC MEDIAPIPE DETECTION LOOP (Crash-Proof & Watchdog Protected)
 // -------------------------------------------------------------
 let isProcessingTracking = false;
+let lastTrackingStartTime = 0;
+
 async function trackingLoop() {
-    if (isCameraActive && videoElement.readyState >= 2 && handsDetector) {
+    if (isCameraActive && videoElement.readyState >= 2 && handsDetector && videoElement.videoWidth > 0 && !videoElement.paused) {
+        // Safety Watchdog: If previous send took more than 800ms, force unblock
+        if (isProcessingTracking && performance.now() - lastTrackingStartTime > 800) {
+            console.warn("MediaPipe send timeout detected, resetting lock.");
+            isProcessingTracking = false;
+        }
+
         if (!isProcessingTracking) {
             isProcessingTracking = true;
+            lastTrackingStartTime = performance.now();
             try {
-                offCtx.drawImage(videoElement, 0, 0, 480, 270);
-                await handsDetector.send({ image: offCanvas });
+                // Keep correct aspect ratio for detection
+                const aspect = (videoElement.videoWidth / videoElement.videoHeight) || (16 / 9);
+                offCanvas.width = 480;
+                offCanvas.height = Math.round(480 / aspect);
+
+                offCtx.drawImage(videoElement, 0, 0, offCanvas.width, offCanvas.height);
+                
+                // Promise.race to guarantee send never hangs the browser loop
+                await Promise.race([
+                    handsDetector.send({ image: offCanvas }),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error("MediaPipe timeout")), 600))
+                ]);
             } catch (err) {
-                console.warn("Tracking error:", err);
+                // Drop frame gracefully without stopping the loop
+            } finally {
+                isProcessingTracking = false;
             }
-            isProcessingTracking = false;
         }
     }
     if (isCameraActive) {
-        setTimeout(trackingLoop, 25);
+        setTimeout(trackingLoop, 30);
     }
 }
+
+// Webcam Stream Health Watchdog (Auto-Detects Stalls & Reconnects)
+let lastVideoCheckTime = 0;
+let cameraStallCounter = 0;
+setInterval(() => {
+    if (!isCameraActive || !videoElement || videoElement.readyState < 2) return;
+
+    if (videoElement.currentTime === lastVideoCheckTime) {
+        cameraStallCounter++;
+        if (cameraStallCounter >= 3) {
+            console.warn("Webcam stream freeze detected, executing auto-recovery...");
+            statusBadge.className = 'badge warning';
+            statusText.textContent = 'Memulihkan Kamera...';
+            videoElement.play().catch(() => {});
+
+            if (webcamStream) {
+                const track = webcamStream.getVideoTracks()[0];
+                if (!track || track.readyState === 'ended' || cameraStallCounter >= 5) {
+                    cameraStallCounter = 0;
+                    toggleCamera().then(() => toggleCamera());
+                }
+            }
+        }
+    } else {
+        lastVideoCheckTime = videoElement.currentTime;
+        cameraStallCounter = 0;
+    }
+}, 1000);
 
 // Initialize MediaPipe Hands safely
 function initMediaPipe() {
@@ -1317,7 +1365,7 @@ function initMediaPipe() {
     }
 }
 
-// WebCam Initialization
+// WebCam Initialization with Stream Recovery
 async function toggleCamera() {
     if (isCameraActive) {
         if (webcamStream) {
@@ -1339,17 +1387,31 @@ async function toggleCamera() {
         try {
             webcamStream = await navigator.mediaDevices.getUserMedia({
                 video: {
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
+                    width: { ideal: 1280, max: 1920 },
+                    height: { ideal: 720, max: 1080 },
+                    frameRate: { ideal: 30, max: 30 },
                     facingMode: 'user'
                 },
                 audio: false
             });
 
+            videoElement.muted = true;
+            videoElement.playsInline = true;
             videoElement.srcObject = webcamStream;
             await videoElement.play();
 
+            const track = webcamStream.getVideoTracks()[0];
+            if (track) {
+                track.onended = () => {
+                    console.warn("Camera track ended unexpectedly, attempting restart...");
+                    if (isCameraActive) {
+                        toggleCamera().then(() => toggleCamera());
+                    }
+                };
+            }
+
             isCameraActive = true;
+            cameraStallCounter = 0;
             btnWebcam.querySelector('span').textContent = 'Matikan Webcam';
             btnWebcam.classList.remove('secondary');
             btnWebcam.classList.add('primary');
