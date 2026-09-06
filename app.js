@@ -31,6 +31,39 @@ shieldImg.onerror = () => {
     console.warn("shield_mandala.png not loaded, using procedural vector mandala.");
 };
 
+// Preload & Offscreen Cache for 3D Blackhole Accretion Ring & Relativistic Jet Assets
+const blackholeRingImg = new Image();
+blackholeRingImg.src = 'Assets/black-hole/textures/blackholering_1_color.png';
+let isBlackholeRingLoaded = false;
+const cachedBlackholeRingCanvas = document.createElement('canvas');
+cachedBlackholeRingCanvas.width = 600;
+cachedBlackholeRingCanvas.height = 600;
+const cachedBlackholeRingCtx = cachedBlackholeRingCanvas.getContext('2d');
+
+blackholeRingImg.onload = () => {
+    cachedBlackholeRingCtx.drawImage(blackholeRingImg, 0, 0, 600, 600);
+    isBlackholeRingLoaded = true;
+};
+blackholeRingImg.onerror = () => {
+    console.warn("blackholering_1_color.png not loaded, using procedural accretion rings.");
+};
+
+const blackholeLightImg = new Image();
+blackholeLightImg.src = 'Assets/black-hole/textures/blackholelight_1_color.png';
+let isBlackholeLightLoaded = false;
+const cachedBlackholeLightCanvas = document.createElement('canvas');
+cachedBlackholeLightCanvas.width = 512;
+cachedBlackholeLightCanvas.height = 512;
+const cachedBlackholeLightCtx = cachedBlackholeLightCanvas.getContext('2d');
+
+blackholeLightImg.onload = () => {
+    cachedBlackholeLightCtx.drawImage(blackholeLightImg, 0, 0, 512, 512);
+    isBlackholeLightLoaded = true;
+};
+blackholeLightImg.onerror = () => {
+    console.warn("blackholelight_1_color.png not loaded, using procedural plasma light.");
+};
+
 // UI Controls
 const colorBtns = document.querySelectorAll('.color-btn');
 const sliderParticles = document.getElementById('slider-particles');
@@ -100,6 +133,22 @@ let targetHandsList = [];
 let persistentHandStates = new Map();
 let dualFistState = { wasDualFist: false, charge: 0, birthProgress: 0, cooldownTimer: 0 };
 let activeCosmicHandId = null; // Single Global Cosmic Orb Authority
+
+// Inter-Hand Cosmic Orb Projectile (Throw & Transfer Engine)
+let cosmicProjectile = {
+    active: false,
+    fromHandId: null,
+    toHandId: null,
+    startX: 0,
+    startY: 0,
+    currentX: 0,
+    currentY: 0,
+    targetX: 0,
+    targetY: 0,
+    progress: 0,
+    speed: 0.045,
+    arcHeight: -75
+};
 
 // Safe Mouse Interaction State
 let mouseHand = {
@@ -406,6 +455,120 @@ function drawCosmicEnergyOrb(ctx, x, y, progress = 1.0) {
     }
 
     ctx.restore();
+}
+
+// -------------------------------------------------------------
+// INTER-HAND COSMIC ORB THROW & TRANSFER ENGINE
+// -------------------------------------------------------------
+function launchCosmicProjectile(fromId, toId, startX, startY, targetX, targetY) {
+    if (cosmicProjectile.active) return;
+
+    // Dissolve orb from sender immediately
+    const senderState = persistentHandStates.get(`hand_${fromId}`);
+    if (senderState) {
+        senderState.cosmicActive = false;
+        senderState.cosmicProgress = 0;
+    }
+    activeCosmicHandId = null;
+
+    cosmicProjectile.active = true;
+    cosmicProjectile.fromHandId = fromId;
+    cosmicProjectile.toHandId = toId;
+    cosmicProjectile.startX = startX;
+    cosmicProjectile.startY = startY;
+    cosmicProjectile.currentX = startX;
+    cosmicProjectile.currentY = startY;
+    cosmicProjectile.targetX = targetX;
+    cosmicProjectile.targetY = targetY;
+    cosmicProjectile.progress = 0;
+    cosmicProjectile.speed = 0.045; // ~22 frames flight time (fast & energetic)
+    // Parabolic arc bends upwards
+    cosmicProjectile.arcHeight = -Math.max(65, Math.abs(targetX - startX) * 0.25);
+
+    // Launch burst
+    triggerSupernovaExplosion(startX, startY, 0.5);
+}
+
+function updateAndDrawCosmicProjectile(ctx, activeHandsList) {
+    if (!cosmicProjectile.active) return;
+
+    cosmicProjectile.progress += cosmicProjectile.speed * dtScale;
+
+    // Real-time homing: find receiver hand to update target coordinates dynamically
+    const receiverHand = activeHandsList.find(h => h.id === cosmicProjectile.toHandId);
+    if (receiverHand) {
+        const tip = receiverHand.fingertips[1] || receiverHand.palm;
+        cosmicProjectile.targetX = tip.x * canvas.width;
+        cosmicProjectile.targetY = tip.y * canvas.height - 45;
+    }
+
+    const t = Math.min(1.0, cosmicProjectile.progress);
+    const arc = Math.sin(t * Math.PI) * cosmicProjectile.arcHeight;
+    const curX = lerp(cosmicProjectile.startX, cosmicProjectile.targetX, t);
+    const curY = lerp(cosmicProjectile.startY, cosmicProjectile.targetY, t) + arc;
+    cosmicProjectile.currentX = curX;
+    cosmicProjectile.currentY = curY;
+
+    // Render High-Speed Plasma Comet Flight
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const colors = PALETTES[activeColorPalette];
+    const mainColor = colors[0];
+    const secColor = colors[1] || colors[0];
+    const accColor = colors[2] || '#ffffff';
+
+    // 1. Electric Lightning Tendrils connecting path
+    ctx.strokeStyle = secColor;
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(cosmicProjectile.startX, cosmicProjectile.startY);
+    const midArcX = (cosmicProjectile.startX + curX) / 2 + (Math.random() - 0.5) * 20;
+    const midArcY = (cosmicProjectile.startY + curY) / 2 + arc * 0.5 + (Math.random() - 0.5) * 20;
+    ctx.quadraticCurveTo(midArcX, midArcY, curX, curY);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+
+    // 2. Cosmic Plasma Projectile Core
+    drawCosmicEnergyOrb(ctx, curX, curY, 1.15);
+
+    // 3. Stardust Particle Tail
+    if (Math.random() < 0.8 && particles.length < targetParticleCount) {
+        const p = new Particle();
+        p.x = curX + (Math.random() - 0.5) * 16;
+        p.y = curY + (Math.random() - 0.5) * 16;
+        p.vx = (Math.random() - 0.5) * 4 - (curX - cosmicProjectile.startX) * 0.03;
+        p.vy = (Math.random() - 0.5) * 4;
+        p.radius = 2.5 + Math.random() * 3.5;
+        p.color = Math.random() > 0.5 ? mainColor : accColor;
+        p.alpha = 1.0;
+        p.life = 25 + Math.random() * 15;
+        p.maxLife = 40;
+        particles.push(p);
+    }
+    ctx.restore();
+
+    // Arrival / Lock-on at Target Index Fingertip
+    if (cosmicProjectile.progress >= 1.0) {
+        cosmicProjectile.active = false;
+        if (receiverHand) {
+            // Lock onto receiving hand!
+            activeCosmicHandId = receiverHand.id;
+            const receiverState = getPersistentState(receiverHand);
+            if (receiverState) {
+                receiverState.cosmicActive = true;
+                receiverState.cosmicProgress = 1.0;
+            }
+            // Arrival impact shockwave & sparkle burst
+            shockwaves.push(new Shockwave(cosmicProjectile.targetX, cosmicProjectile.targetY, secColor, 95));
+            triggerSupernovaExplosion(cosmicProjectile.targetX, cosmicProjectile.targetY, 0.65);
+        } else {
+            // Target hand was lost in flight, detonate gracefully
+            triggerSupernovaExplosion(curX, curY, 0.7);
+        }
+    }
 }
 
 // -------------------------------------------------------------
@@ -757,82 +920,173 @@ function drawBlackhole(ctx, x, y, chargeRatio = 0, birthProgress = 1.0) {
 }
 
 // -------------------------------------------------------------
-// GIGA DUAL-HAND INTERSTELLAR BLACKHOLE FUSION RENDERER
+// GIGA DUAL-HAND INTERSTELLAR BLACKHOLE FUSION RENDERER (ULTRA-FIERCE 3D TEXTURE ENGINE)
 // -------------------------------------------------------------
 function drawGigaBlackhole(ctx, x1, y1, x2, y2, midX, midY, chargeRatio = 0, birthProgress = 1.0) {
     const colors = PALETTES[activeColorPalette];
     const mainColor = colors[0];
     const secColor = colors[1] || colors[0];
+    const accColor = colors[2] || '#ffffff';
     
-    const baseRadius = 110 * Math.min(1.0, birthProgress * 1.2);
-    const radius = baseRadius + chargeRatio * 65;
+    const baseRadius = 120 * Math.min(1.0, birthProgress * 1.2);
+    const radius = baseRadius + chargeRatio * 85;
 
     ctx.save();
 
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.strokeStyle = mainColor;
-    ctx.lineWidth = (4 + Math.random() * 3) * birthProgress;
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(midX, midY);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-    ctx.restore();
-
-    ctx.translate(midX, midY);
-    blackholeRotation += 0.06 * dtScale;
-
+    // 1. High-Voltage Jagged Lightning Arcs connecting both fists to Singularity
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
+    const drawJaggedLightning = (fromX, fromY, toX, toY, width, color) => {
+        const segments = 6;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        ctx.moveTo(fromX, fromY);
+        for (let i = 1; i < segments; i++) {
+            const frac = i / segments;
+            const jitter = (35 + chargeRatio * 30) * birthProgress;
+            const nx = fromX + (toX - fromX) * frac + (Math.random() - 0.5) * jitter;
+            const ny = fromY + (toY - fromY) * frac + (Math.random() - 0.5) * jitter;
+            ctx.lineTo(nx, ny);
+        }
+        ctx.lineTo(toX, toY);
+        ctx.stroke();
+    };
 
-    ctx.strokeStyle = mainColor;
-    ctx.lineWidth = (8 + chargeRatio * 5) * birthProgress;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, radius * 1.65, radius * 0.48, blackholeRotation * 0.25, 0, Math.PI * 2);
-    ctx.stroke();
+    drawJaggedLightning(x1, y1, midX, midY, (6 + chargeRatio * 5) * birthProgress, secColor);
+    drawJaggedLightning(x1, y1, midX, midY, 2.5 * birthProgress, '#ffffff');
+    drawJaggedLightning(x2, y2, midX, midY, (6 + chargeRatio * 5) * birthProgress, secColor);
+    drawJaggedLightning(x2, y2, midX, midY, 2.5 * birthProgress, '#ffffff');
 
-    ctx.strokeStyle = secColor;
-    ctx.lineWidth = (5 + chargeRatio * 3) * birthProgress;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, radius * 0.48, radius * 1.6, -blackholeRotation * 0.2, 0, Math.PI * 2);
-    ctx.stroke();
-
+    // Direct energy arc between fists
+    if (Math.random() < 0.7) {
+        drawJaggedLightning(x1, y1, x2, y2, (3.5 + chargeRatio * 3) * birthProgress, mainColor);
+    }
     ctx.restore();
 
+    // Camera / Singularity Tremor on high charge
+    let shakeX = 0, shakeY = 0;
+    if (chargeRatio > 0.05) {
+        shakeX = (Math.random() - 0.5) * chargeRatio * 10 * birthProgress;
+        shakeY = (Math.random() - 0.5) * chargeRatio * 10 * birthProgress;
+    }
+
+    ctx.translate(midX + shakeX, midY + shakeY);
+    blackholeRotation += (0.05 + chargeRatio * 0.08) * dtScale;
+
+    // 2. Gravitational Pulsing Halo (Volumetric Outer Lensing)
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const outerLensing = ctx.createRadialGradient(0, 0, radius * 0.8, 0, 0, radius * 3.2);
+    outerLensing.addColorStop(0, mainColor);
+    outerLensing.addColorStop(0.35, secColor);
+    outerLensing.addColorStop(0.7, 'rgba(10, 15, 45, 0.4)');
+    outerLensing.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = outerLensing;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 3.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 3. Relativistic Bipolar Plasma Jets (North & South Poles)
+    if (isBlackholeLightLoaded) {
+        const jetScale = (1.4 + chargeRatio * 1.8) * birthProgress;
+        const jetAlpha = (0.7 + chargeRatio * 0.3) * birthProgress;
+        
+        // North Polar Jet
+        ctx.save();
+        ctx.translate(0, -radius * 0.35);
+        ctx.scale(0.85, jetScale);
+        ctx.globalAlpha = jetAlpha;
+        ctx.drawImage(cachedBlackholeLightCanvas, -256, -512, 512, 512);
+        ctx.restore();
+
+        // South Polar Jet
+        ctx.save();
+        ctx.translate(0, radius * 0.35);
+        ctx.scale(0.85, -jetScale);
+        ctx.globalAlpha = jetAlpha;
+        ctx.drawImage(cachedBlackholeLightCanvas, -256, -512, 512, 512);
+        ctx.restore();
+    }
+    ctx.restore();
+
+    // 4. Background Einstein Lensing Arc (Bending over Event Horizon)
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    if (isBlackholeRingLoaded) {
+        ctx.save();
+        ctx.scale(1.4, 0.58);
+        ctx.rotate(blackholeRotation * 0.7);
+        ctx.globalAlpha = (0.75 + chargeRatio * 0.25) * birthProgress;
+        ctx.drawImage(cachedBlackholeRingCanvas, -radius * 1.8, -radius * 1.8, radius * 3.6, radius * 3.6);
+        ctx.restore();
+    } else {
+        ctx.strokeStyle = secColor;
+        ctx.lineWidth = 14 * birthProgress;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, radius * 1.9, radius * 0.65, blackholeRotation * 0.4, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+    ctx.restore();
+
+    // 5. PITCH BLACK EVENT HORIZON VOID (Absorbs All Light in Space)
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
     ctx.beginPath();
-    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.arc(0, 0, radius * 0.96, 0, Math.PI * 2);
     ctx.fillStyle = '#000000';
+    ctx.fill();
+
+    const shadowGrad = ctx.createRadialGradient(0, 0, radius * 0.5, 0, 0, radius * 0.96);
+    shadowGrad.addColorStop(0, '#000000');
+    shadowGrad.addColorStop(1, 'rgba(0,0,0,0.95)');
+    ctx.fillStyle = shadowGrad;
     ctx.fill();
     ctx.restore();
 
+    // 6. Foreground Main Accretion Disk (Tilted with Relativistic Doppler Beaming)
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
+    if (isBlackholeRingLoaded) {
+        ctx.save();
+        ctx.scale(1.55, 0.44);
+        ctx.rotate(-blackholeRotation * 1.3);
+        ctx.globalAlpha = 0.98 * birthProgress;
+        ctx.drawImage(cachedBlackholeRingCanvas, -radius * 1.5, -radius * 1.5, radius * 3.0, radius * 3.0);
+        ctx.restore();
+    } else {
+        ctx.strokeStyle = mainColor;
+        ctx.lineWidth = 16 * birthProgress;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, radius * 1.8, radius * 0.45, 0.12, 0, Math.PI * 2);
+        ctx.stroke();
+    }
 
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 4 * birthProgress;
+    // 7. Relativistic Doppler Beaming Flare (Advancing Side is intensely brighter!)
+    const dopplerAngle = 0.12;
+    ctx.save();
+    ctx.rotate(dopplerAngle);
+    const flareGrad = ctx.createRadialGradient(-radius * 1.2, 0, radius * 0.1, -radius * 1.2, 0, radius * 0.95);
+    flareGrad.addColorStop(0, '#ffffff');
+    flareGrad.addColorStop(0.4, secColor);
+    flareGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = flareGrad;
     ctx.beginPath();
-    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.ellipse(-radius * 1.2, 0, radius * 0.85, radius * 0.38, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // 8. Razor-Sharp Photon Ring & Energetic Spikes
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = (3.5 + chargeRatio * 3) * birthProgress;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 0.98, 0, Math.PI * 2);
     ctx.stroke();
 
     ctx.strokeStyle = mainColor;
-    ctx.lineWidth = 5 * birthProgress;
+    ctx.lineWidth = (6 + chargeRatio * 5) * birthProgress;
     ctx.beginPath();
-    ctx.arc(0, 0, radius + 4, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.strokeStyle = mainColor;
-    ctx.lineWidth = (8 + chargeRatio * 5) * birthProgress;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, radius * 1.75, radius * 0.38, 0.15, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 2.5 * birthProgress;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, radius * 1.55, radius * 0.25, 0.15, 0, Math.PI * 2);
+    ctx.arc(0, 0, radius * 1.05, 0, Math.PI * 2);
     ctx.stroke();
 
     ctx.restore();
@@ -1128,11 +1382,12 @@ function render() {
                 const dx = dualMidX - p.x;
                 const dy = dualMidY - p.y;
                 const distSq = dx * dx + dy * dy;
-                if (distSq > 25 && distSq < 160000) {
+                if (distSq > 25 && distSq < 250000) {
                     const d = Math.sqrt(distSq);
-                    const pull = (2.0 + dualFistState.charge * 3.0) * dtScale;
-                    p.vx += (dx / d) * pull;
-                    p.vy += (dy / d) * pull;
+                    const spiralAngle = Math.atan2(dy, dx) + 0.45;
+                    const pull = (2.8 + dualFistState.charge * 4.5) * dtScale;
+                    p.vx += Math.cos(spiralAngle) * pull;
+                    p.vy += Math.sin(spiralAngle) * pull;
                 }
             });
         }
@@ -1170,6 +1425,17 @@ function render() {
         const indexX = indexTip.x * canvas.width;
         const indexY = indexTip.y * canvas.height - 45;
 
+        // Track index fingertip velocity for throw/flick detection
+        if (hand.lastIndexX !== undefined) {
+            hand.indexVx = (indexX - hand.lastIndexX) / dtScale;
+            hand.indexVy = (indexY - hand.lastIndexY) / dtScale;
+        } else {
+            hand.indexVx = 0;
+            hand.indexVy = 0;
+        }
+        hand.lastIndexX = indexX;
+        hand.lastIndexY = indexY;
+
         const colors = PALETTES[activeColorPalette];
         let pState = getPersistentState(hand);
         if (!pState) return;
@@ -1192,7 +1458,30 @@ function render() {
             }
         }
 
-        // Pinch Tap Toggle State for Floating Cosmic Orb:
+        // 1. Throw Detection: If this hand holds the active Cosmic Orb and flicks toward the other hand!
+        if (activeCosmicHandId === hand.id && pState.cosmicActive && !isOtherSpellActive && !cosmicProjectile.active) {
+            const otherHand = activeHandsList.find(h => h.id !== hand.id);
+            if (otherHand) {
+                const otherTip = otherHand.fingertips[1] || otherHand.palm;
+                const otherX = otherTip.x * canvas.width;
+                const otherY = otherTip.y * canvas.height - 45;
+                const toOtherX = otherX - indexX;
+                const toOtherY = otherY - indexY;
+                const distToOther = Math.hypot(toOtherX, toOtherY);
+
+                if (distToOther > 110) {
+                    const velTowardTarget = (hand.indexVx * toOtherX + hand.indexVy * toOtherY) / distToOther;
+                    const flickSpeed = Math.hypot(hand.indexVx, hand.indexVy);
+
+                    // Flick/swipe gesture towards the other hand!
+                    if (flickSpeed > 13 && velTowardTarget > 10) {
+                        launchCosmicProjectile(hand.id, otherHand.id, indexX, indexY, otherX, otherY);
+                    }
+                }
+            }
+        }
+
+        // 2. Pinch Tap Toggle / Summon State for Floating Cosmic Orb:
         // Must be stable for >= 4 frames, no other active spell, and released for at least 3 frames
         if (!hand.isPinchTap) {
             pState.pinchReleaseFrames = (pState.pinchReleaseFrames || 0) + 1;
@@ -1203,12 +1492,26 @@ function render() {
         if (hand.isPinchTap && !pState.wasPinchTap && canTriggerPinch) {
             pState.pinchReleaseFrames = 0;
             if (activeCosmicHandId === hand.id) {
-                // Toggle OFF
+                // Toggle OFF on this hand
                 pState.cosmicActive = false;
                 pState.cosmicProgress = 0;
                 activeCosmicHandId = null;
-            } else {
-                // Toggle ON: ensure NO OTHER HAND has an active cosmic orb!
+            } else if (activeCosmicHandId !== null && !cosmicProjectile.active) {
+                // The OTHER hand currently has the orb: SUMMON / PULL it over via projectile flight!
+                const sourceHand = activeHandsList.find(h => h.id === activeCosmicHandId);
+                if (sourceHand) {
+                    const srcTip = sourceHand.fingertips[1] || sourceHand.palm;
+                    const srcX = srcTip.x * canvas.width;
+                    const srcY = srcTip.y * canvas.height - 45;
+                    launchCosmicProjectile(sourceHand.id, hand.id, srcX, srcY, indexX, indexY);
+                } else {
+                    // Source hand is gone, activate here directly
+                    persistentHandStates.forEach(s => { s.cosmicActive = false; s.cosmicProgress = 0; });
+                    pState.cosmicActive = true;
+                    activeCosmicHandId = hand.id;
+                }
+            } else if (!cosmicProjectile.active) {
+                // No other hand has the orb: activate directly on this hand!
                 persistentHandStates.forEach((otherState) => {
                     otherState.cosmicActive = false;
                     otherState.cosmicProgress = 0;
@@ -1219,8 +1522,8 @@ function render() {
         }
         pState.wasPinchTap = hand.isPinchTap;
 
-        // Only progress and draw cosmic orb if this hand is the single active hand and no other spell is active
-        if (activeCosmicHandId === hand.id && pState.cosmicActive && !isOtherSpellActive) {
+        // Only progress and draw cosmic orb if this hand is the single active hand, no projectile in flight, and no other spell is active
+        if (activeCosmicHandId === hand.id && pState.cosmicActive && !isOtherSpellActive && !cosmicProjectile.active) {
             pState.cosmicProgress = Math.min(1.0, pState.cosmicProgress + 0.18 * dtScale);
         } else {
             pState.cosmicProgress = 0;
@@ -1304,6 +1607,9 @@ function render() {
             ctx.restore();
         }
     });
+
+    // Render Inter-Hand Cosmic Projectile (Flight & Stardust Trail)
+    updateAndDrawCosmicProjectile(ctx, activeHandsList);
 
     if (camViewMode === 'pip') {
         drawMiniMonitor(ctx);
@@ -1538,6 +1844,7 @@ async function toggleCamera() {
         trackedHands = [];
         persistentHandStates.clear();
         activeCosmicHandId = null;
+        cosmicProjectile.active = false;
         btnWebcam.querySelector('span').textContent = 'Aktifkan Webcam';
         btnWebcam.classList.remove('primary');
         btnWebcam.classList.add('secondary');
