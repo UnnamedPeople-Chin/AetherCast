@@ -1,9 +1,10 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 
-// Safe GPU Acceleration Flags (Prevents Windows MediaFoundation DirectShow Camera Freezes)
+// Safe GPU Acceleration Flags & Disk Cache Fix
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
 
 function createWindow() {
     const win = new BrowserWindow({

@@ -1362,10 +1362,12 @@ async function trackingLoop() {
             isProcessingTracking = true;
             lastTrackingStartTime = performance.now();
             try {
-                // Keep correct aspect ratio for detection
-                const aspect = (videoElement.videoWidth / videoElement.videoHeight) || (16 / 9);
-                offCanvas.width = 480;
-                offCanvas.height = Math.round(480 / aspect);
+                // Keep correct aspect ratio for detection (only resize when changed)
+                const targetH = Math.round(480 / ((videoElement.videoWidth / videoElement.videoHeight) || (16 / 9)));
+                if (offCanvas.width !== 480 || offCanvas.height !== targetH) {
+                    offCanvas.width = 480;
+                    offCanvas.height = targetH;
+                }
 
                 offCtx.drawImage(videoElement, 0, 0, offCanvas.width, offCanvas.height);
                 
