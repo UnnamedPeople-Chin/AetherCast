@@ -885,7 +885,7 @@ function drawMiniMonitor(ctx) {
 // -------------------------------------------------------------
 function updateHandTrackingInterpolation() {
     const activeTargets = [...targetHandsList];
-    const maxGhostFrames = 10; // ~300ms grace period to prevent flickering during fast movements
+    const maxGhostFrames = 3; // Minimal grace period for instant disappearing when hand leaves
 
     const matchedTargets = new Set();
     const matchedTracked = new Set();
@@ -918,7 +918,7 @@ function updateHandTrackingInterpolation() {
         }
     }
 
-    // 2. Update Matched Hands with Adaptive Smoothing
+    // 2. Update Matched Hands with Direct 1:1 High-Accuracy Tracking
     trackedHands.forEach((currentHand, idx) => {
         if (matchedTracked.has(idx)) {
             let targetIdx = -1;
@@ -940,47 +940,26 @@ function updateHandTrackingInterpolation() {
                 currentHand.lostFrames = 0;
                 currentHand.trackedFrames = (currentHand.trackedFrames || 0) + 1;
 
-                // Adaptive dynamic smoothing: Snappy on fast motion, silky smooth on stillness
-                const moveDist = dist(currentHand.palm, target.palm);
-                const lerpAmt = Math.min(0.78, Math.max(0.32, moveDist * 3.6));
+                // 1:1 Direct High-Accuracy Positional Tracking (Zero Latency & Snappy Response)
+                currentHand.palm.x = target.palm.x;
+                currentHand.palm.y = target.palm.y;
+                currentHand.wrist.x = target.wrist.x;
+                currentHand.wrist.y = target.wrist.y;
 
-                currentHand.palm.x = lerp(currentHand.palm.x, target.palm.x, lerpAmt);
-                currentHand.palm.y = lerp(currentHand.palm.y, target.palm.y, lerpAmt);
-                currentHand.wrist.x = lerp(currentHand.wrist.x, target.wrist.x, lerpAmt);
-                currentHand.wrist.y = lerp(currentHand.wrist.y, target.wrist.y, lerpAmt);
-
-                // Smooth all fingertips
+                // 1:1 Instant Fingertips
                 if (target.fingertips) {
-                    target.fingertips.forEach((tip, fIdx) => {
-                        if (currentHand.fingertips[fIdx]) {
-                            currentHand.fingertips[fIdx].x = lerp(currentHand.fingertips[fIdx].x, tip.x, lerpAmt);
-                            currentHand.fingertips[fIdx].y = lerp(currentHand.fingertips[fIdx].y, tip.y, lerpAmt);
-                        }
-                    });
+                    currentHand.fingertips = target.fingertips.map(tip => ({ x: tip.x, y: tip.y }));
                 }
 
-                // Smooth all 21 raw landmarks for silky hand skeleton rendering
-                if (currentHand.rawLandmarks && target.rawLandmarks) {
-                    for (let lm = 0; lm < 21; lm++) {
-                        if (currentHand.rawLandmarks[lm] && target.rawLandmarks[lm]) {
-                            currentHand.rawLandmarks[lm].x = lerp(currentHand.rawLandmarks[lm].x, target.rawLandmarks[lm].x, lerpAmt);
-                            currentHand.rawLandmarks[lm].y = lerp(currentHand.rawLandmarks[lm].y, target.rawLandmarks[lm].y, lerpAmt);
-                        }
-                    }
-                } else {
-                    currentHand.rawLandmarks = target.rawLandmarks ? target.rawLandmarks.map(p => ({ ...p })) : null;
+                // 1:1 Instant Skeleton Landmarks
+                if (target.rawLandmarks) {
+                    currentHand.rawLandmarks = target.rawLandmarks.map(lm => ({ x: lm.x, y: lm.y, z: lm.z }));
                 }
 
-                // Gesture Hysteresis & Debounce (Eliminates flickering)
-                currentHand.fistConfidence = target.isFist ? Math.min(5, (currentHand.fistConfidence || 0) + 1) : Math.max(0, (currentHand.fistConfidence || 0) - 1);
-                currentHand.isFist = currentHand.fistConfidence >= 2;
-
-                currentHand.shieldConfidence = target.isShieldTouch ? Math.min(5, (currentHand.shieldConfidence || 0) + 1) : Math.max(0, (currentHand.shieldConfidence || 0) - 1);
-                currentHand.isShieldTouch = currentHand.shieldConfidence >= 2;
-
-                currentHand.openPalmConfidence = target.isOpenPalm ? Math.min(5, (currentHand.openPalmConfidence || 0) + 1) : Math.max(0, (currentHand.openPalmConfidence || 0) - 1);
-                currentHand.isOpenPalm = currentHand.openPalmConfidence >= 2;
-
+                // Instant Gesture Precision (Zero Delay Reaction)
+                currentHand.isFist = target.isFist;
+                currentHand.isShieldTouch = target.isShieldTouch;
+                currentHand.isOpenPalm = target.isOpenPalm;
                 currentHand.isPinchTap = target.isPinchTap;
             }
         } else {
@@ -1091,9 +1070,9 @@ function render() {
 
         // Strict dual-hand validation:
         // 1. Both hands must be genuinely detected in the current frame (no ghost frames)
-        // 2. Both hands must have a solid tracking history (>= 8 continuous frames)
+        // 2. Both hands must have a solid tracking history (>= 3 continuous frames for instant response)
         const bothDetectedNow = (h1.lostFrames || 0) === 0 && (h2.lostFrames || 0) === 0;
-        const bothStablyTracked = (h1.trackedFrames || 0) >= 8 && (h2.trackedFrames || 0) >= 8;
+        const bothStablyTracked = (h1.trackedFrames || 0) >= 3 && (h2.trackedFrames || 0) >= 3;
 
         if (bothDetectedNow && bothStablyTracked) {
             p1 = { x: h1.palm.x * canvas.width, y: h1.palm.y * canvas.height };
@@ -1214,12 +1193,12 @@ function render() {
         }
 
         // Pinch Tap Toggle State for Floating Cosmic Orb:
-        // Must be stable for >= 15 frames, no other active spell, and released for at least 8 frames
+        // Must be stable for >= 4 frames, no other active spell, and released for at least 3 frames
         if (!hand.isPinchTap) {
             pState.pinchReleaseFrames = (pState.pinchReleaseFrames || 0) + 1;
         }
 
-        const canTriggerPinch = (hand.trackedFrames || 0) >= 15 && !isOtherSpellActive && (pState.pinchReleaseFrames || 0) >= 8;
+        const canTriggerPinch = (hand.trackedFrames || 0) >= 4 && !isOtherSpellActive && (pState.pinchReleaseFrames || 0) >= 3;
 
         if (hand.isPinchTap && !pState.wasPinchTap && canTriggerPinch) {
             pState.pinchReleaseFrames = 0;
@@ -1242,7 +1221,7 @@ function render() {
 
         // Only progress and draw cosmic orb if this hand is the single active hand and no other spell is active
         if (activeCosmicHandId === hand.id && pState.cosmicActive && !isOtherSpellActive) {
-            pState.cosmicProgress = Math.min(1.0, pState.cosmicProgress + 0.1 * dtScale);
+            pState.cosmicProgress = Math.min(1.0, pState.cosmicProgress + 0.18 * dtScale);
         } else {
             pState.cosmicProgress = 0;
             pState.cosmicActive = false;
@@ -1254,9 +1233,9 @@ function render() {
 
         // DOCTOR STRANGE SHIELD: Activated when Index Tip & Middle Tip Touch!
         if (isShieldActive && !isDualShield) {
-            pState.shieldProgress = Math.min(1.0, pState.shieldProgress + 0.1 * dtScale);
+            pState.shieldProgress = Math.min(1.0, pState.shieldProgress + 0.18 * dtScale);
         } else {
-            pState.shieldProgress = Math.max(0, pState.shieldProgress - 0.08 * dtScale);
+            pState.shieldProgress = Math.max(0, pState.shieldProgress - 0.16 * dtScale);
         }
 
         const hasActiveEffect = isDualFist || isDualShield || isFistActive || pState.shieldProgress > 0.1 || pState.fistCharge > 0 || pState.cosmicProgress > 0.1;
@@ -1486,7 +1465,7 @@ async function trackingLoop() {
         }
     }
     if (isCameraActive) {
-        setTimeout(trackingLoop, 30);
+        setTimeout(trackingLoop, 10);
     }
 }
 
