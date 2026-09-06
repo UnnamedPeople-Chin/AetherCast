@@ -1,4 +1,4 @@
-// --- AETHERCAST: Next-Gen Cinematic Magic Engine (Ultra Optimized & Randomized Palette) ---
+// --- AETHERCAST: Next-Gen Cinematic Magic Engine (Bugfixes & Ultra-Reliability) ---
 
 // DOM Elements
 const canvas = document.getElementById('output_canvas');
@@ -13,6 +13,23 @@ const offCanvas = document.createElement('canvas');
 offCanvas.width = 480;
 offCanvas.height = 270;
 const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
+
+// Preload & Offscreen Cache for Authentic Doctor Strange Mandala Asset
+const shieldImg = new Image();
+shieldImg.src = 'Assets/shield_mandala.png';
+let isShieldImgLoaded = false;
+const cachedShieldCanvas = document.createElement('canvas');
+cachedShieldCanvas.width = 600;
+cachedShieldCanvas.height = 600;
+const cachedShieldCtx = cachedShieldCanvas.getContext('2d');
+
+shieldImg.onload = () => {
+    cachedShieldCtx.drawImage(shieldImg, 0, 0, 600, 600);
+    isShieldImgLoaded = true;
+};
+shieldImg.onerror = () => {
+    console.warn("shield_mandala.png not loaded, using procedural vector mandala.");
+};
 
 // UI Controls
 const colorBtns = document.querySelectorAll('.color-btn');
@@ -83,21 +100,23 @@ let targetHandsList = [];
 let persistentHandStates = new Map();
 let dualFistState = { wasDualFist: false, charge: 0, birthProgress: 0, cooldownTimer: 0 };
 
-// Fallback Mouse Interaction State
+// Safe Mouse Interaction State
 let mouseHand = {
     isMouse: true,
+    wrist: { x: 0.5, y: 0.7 },
     palm: { x: 0.5, y: 0.5 },
     fingertips: [
-        { x: 0.5, y: 0.5 },
-        { x: 0.5, y: 0.5 },
-        { x: 0.5, y: 0.5 },
-        { x: 0.5, y: 0.5 },
-        { x: 0.5, y: 0.5 }
+        { x: 0.48, y: 0.48 },
+        { x: 0.5, y: 0.45 },
+        { x: 0.52, y: 0.48 },
+        { x: 0.53, y: 0.5 },
+        { x: 0.54, y: 0.52 }
     ],
     isFist: false,
     isOpenPalm: true,
-    isShieldTouch: true,
+    isShieldTouch: false,
     isPinchTap: false,
+    rawLandmarks: null,
     trail: []
 };
 
@@ -111,6 +130,7 @@ const HAND_CONNECTIONS = [
 ];
 
 function dist(p1, p2) {
+    if (!p1 || !p2) return 999;
     return Math.hypot(p1.x - p2.x, p1.y - p2.y);
 }
 
@@ -281,11 +301,14 @@ function triggerSupernovaExplosion(x, y, intensity = 1.0) {
 }
 
 function getPersistentState(hand) {
+    if (!hand) return null;
+    const wrist = hand.wrist || hand.palm || { x: 0.5, y: 0.5 };
     let bestKey = null;
     let minDist = 0.25;
 
     for (let [key, state] of persistentHandStates.entries()) {
-        const d = dist(hand.wrist, state.lastWrist);
+        const lastW = state.lastWrist || { x: 0.5, y: 0.5 };
+        const d = dist(wrist, lastW);
         if (d < minDist) {
             minDist = d;
             bestKey = key;
@@ -297,7 +320,7 @@ function getPersistentState(hand) {
     }
 
     let state = persistentHandStates.get(bestKey) || {
-        lastWrist: hand.wrist,
+        lastWrist: { ...wrist },
         fistCharge: 0,
         birthProgress: 0,
         noFistDebounce: 0,
@@ -308,7 +331,7 @@ function getPersistentState(hand) {
         shieldProgress: 0
     };
 
-    state.lastWrist = hand.wrist;
+    state.lastWrist = { ...wrist };
     persistentHandStates.set(bestKey, state);
     return state;
 }
@@ -435,7 +458,7 @@ function drawHandSkeleton(ctx, rawLandmarks, colors) {
 }
 
 // -------------------------------------------------------------
-// AUTHENTIC ANCIENT RUNE MANDALA SHIELD (MATCHING USER REFERENCE)
+// AUTHENTIC ANCIENT RUNE MANDALA SHIELD (HYBRID ASSET & VECTOR)
 // -------------------------------------------------------------
 let runeRotation = 0;
 function drawDoctorStrangeShield(ctx, x, y, baseRadius = 150, progress = 1.0) {
@@ -462,131 +485,77 @@ function drawDoctorStrangeShield(ctx, x, y, baseRadius = 150, progress = 1.0) {
     ctx.beginPath();
     ctx.arc(0, 0, radius * 1.35, 0, Math.PI * 2);
     ctx.fillStyle = backGlow;
-    ctx.globalAlpha = 0.4 * progress;
+    ctx.globalAlpha = 0.45 * progress;
     ctx.fill();
 
-    // 1. Triple Concentric Outer Border Rings
-    ctx.globalAlpha = 0.95 * progress;
-
-    ctx.strokeStyle = mainColor;
-    ctx.lineWidth = 4 * progress;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.strokeStyle = secColor;
-    ctx.lineWidth = 2.5 * progress;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius - 6, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.strokeStyle = mainColor;
-    ctx.lineWidth = 3.5 * progress;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius * 0.84, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.strokeStyle = secColor;
-    ctx.lineWidth = 2 * progress;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius * 0.78, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // 2. Outer Rotating Rune Text Track (Authentic Asian/Ancient Arcane Ticks)
-    ctx.save();
-    ctx.rotate(runeRotation);
-    ctx.strokeStyle = accColor;
-    ctx.lineWidth = 4 * progress;
-    ctx.setLineDash([8, 12, 18, 12]);
-    ctx.beginPath();
-    ctx.arc(0, 0, radius - 3, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.rotate(-runeRotation * 2);
-    ctx.strokeStyle = secColor;
-    ctx.lineWidth = 3 * progress;
-    ctx.setLineDash([5, 10, 14, 8]);
-    ctx.beginPath();
-    ctx.arc(0, 0, radius * 0.81, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-
-    // 3. Dense Overlapping 10-Star Polygons (Matching User Image Structure)
-    ctx.save();
-    ctx.rotate(runeRotation * 0.7);
-    ctx.lineWidth = 2.2 * progress;
-
-    const starLayers = 6;
-    for (let s = 0; s < starLayers; s++) {
+    // 1. Draw High-Resolution Shield Mandala Asset if available
+    if (isShieldImgLoaded) {
         ctx.save();
-        ctx.rotate((s * Math.PI) / (starLayers * 2));
-        
-        ctx.strokeStyle = s % 2 === 0 ? secColor : mainColor;
+        ctx.rotate(runeRotation * 0.7);
+        ctx.globalAlpha = 0.95 * progress;
+        ctx.drawImage(cachedShieldCanvas, -radius, -radius, radius * 2, radius * 2);
+        ctx.restore();
+    } else {
+        // Procedural Vector Fallback
+        ctx.globalAlpha = 0.95 * progress;
+
+        ctx.strokeStyle = mainColor;
+        ctx.lineWidth = 4 * progress;
         ctx.beginPath();
-        ctx.rect(-radius * 0.54, -radius * 0.54, radius * 1.08, radius * 1.08);
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
         ctx.stroke();
 
-        ctx.strokeStyle = accColor;
-        ctx.lineWidth = 1.2 * progress;
-        ctx.strokeRect(-radius * 0.53, -radius * 0.53, radius * 1.06, radius * 1.06);
+        ctx.strokeStyle = secColor;
+        ctx.lineWidth = 2.5 * progress;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius - 6, 0, Math.PI * 2);
+        ctx.stroke();
 
+        ctx.strokeStyle = mainColor;
+        ctx.lineWidth = 3.5 * progress;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 0.84, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Star Layers
+        ctx.save();
+        ctx.rotate(runeRotation * 0.7);
+        ctx.lineWidth = 2.2 * progress;
+        for (let s = 0; s < 6; s++) {
+            ctx.save();
+            ctx.rotate((s * Math.PI) / 12);
+            ctx.strokeStyle = s % 2 === 0 ? secColor : mainColor;
+            ctx.beginPath();
+            ctx.rect(-radius * 0.54, -radius * 0.54, radius * 1.08, radius * 1.08);
+            ctx.stroke();
+            ctx.restore();
+        }
         ctx.restore();
     }
-    ctx.restore();
 
-    // 4. Inner Ring Track & Mechanical Cog/Gear Core
-    ctx.strokeStyle = mainColor;
-    ctx.lineWidth = 3 * progress;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius * 0.36, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.strokeStyle = secColor;
-    ctx.lineWidth = 2 * progress;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius * 0.3, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Inner Mechanical Arcane Cog Teeth
+    // 2. Dynamic Rotating Outer Rune Dash Tracks
     ctx.save();
-    ctx.rotate(-runeRotation * 1.5);
+    ctx.rotate(runeRotation * 1.3);
     ctx.strokeStyle = accColor;
-    ctx.lineWidth = 2.5 * progress;
-    const teeth = 16;
+    ctx.lineWidth = 3.5 * progress;
+    ctx.setLineDash([8, 12, 18, 12]);
     ctx.beginPath();
-    for (let t = 0; t < teeth; t++) {
-        const angle = (t * Math.PI * 2) / teeth;
-        const rInner = radius * 0.2;
-        const rOuter = radius * 0.28;
-        const x1 = Math.cos(angle) * rInner;
-        const y1 = Math.sin(angle) * rInner;
-        const x2 = Math.cos(angle) * rOuter;
-        const y2 = Math.sin(angle) * rOuter;
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-    }
+    ctx.arc(0, 0, radius - 2, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.rotate(-runeRotation * 2.2);
+    ctx.strokeStyle = secColor;
+    ctx.lineWidth = 2.5 * progress;
+    ctx.setLineDash([5, 10, 14, 8]);
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 0.82, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
 
-    // Central Bright Eye Singularity Void
-    ctx.save();
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.beginPath();
-    ctx.arc(0, 0, radius * 0.12, 0, Math.PI * 2);
-    ctx.fillStyle = '#000000';
-    ctx.fill();
-
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.beginPath();
-    ctx.arc(0, 0, radius * 0.08, 0, Math.PI * 2);
-    ctx.fillStyle = '#ffffff';
-    ctx.fill();
-    ctx.restore();
-
-    // 5. Rich Fiery Embers & Spark Burst ("Efek Di-Ramein")
-    if (Math.random() < 0.65 && particles.length < targetParticleCount) {
+    // 3. Dense Fiery Embers & Spark Bursts
+    if (Math.random() < 0.7 && particles.length < targetParticleCount) {
         const sparkAngle = Math.random() * Math.PI * 2;
-        const sparkRadius = radius * (0.8 + Math.random() * 0.4);
+        const sparkRadius = radius * (0.8 + Math.random() * 0.35);
         const pX = x + Math.cos(sparkAngle) * sparkRadius;
         const pY = y + Math.sin(sparkAngle) * sparkRadius;
         const spark = new Particle();
@@ -601,7 +570,7 @@ function drawDoctorStrangeShield(ctx, x, y, baseRadius = 150, progress = 1.0) {
 // AUTHENTIC GIGA DUAL-HAND MULTIVERSE SHIELD ARRAY
 // -------------------------------------------------------------
 function drawGigaShield(ctx, x1, y1, x2, y2, midX, midY) {
-    const radius = 220;
+    const radius = 230;
     const colors = PALETTES[activeColorPalette];
     const mainColor = colors[0];
     const secColor = colors[1] || colors[0];
@@ -630,64 +599,63 @@ function drawGigaShield(ctx, x1, y1, x2, y2, midX, midY) {
 
     ctx.globalCompositeOperation = 'lighter';
 
-    // Massive Multiverse Outer Ring
-    ctx.strokeStyle = mainColor;
-    ctx.lineWidth = 6;
+    // Volumetric Central Shockwave Glow
+    const glow = ctx.createRadialGradient(0, 0, radius * 0.3, 0, 0, radius * 1.4);
+    glow.addColorStop(0, '#ffffff');
+    glow.addColorStop(0.4, secColor);
+    glow.addColorStop(0.8, mainColor);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.globalAlpha = 0.5;
     ctx.beginPath();
-    ctx.arc(0, 0, radius, 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.arc(0, 0, radius * 1.4, 0, Math.PI * 2);
+    ctx.fill();
 
-    ctx.strokeStyle = secColor;
-    ctx.lineWidth = 3.5;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius - 8, 0, Math.PI * 2);
-    ctx.stroke();
+    // High-Resolution Shield Texture Array
+    if (isShieldImgLoaded) {
+        ctx.save();
+        ctx.rotate(runeRotation * 0.8);
+        ctx.globalAlpha = 0.95;
+        ctx.drawImage(cachedShieldCanvas, -radius, -radius, radius * 2, radius * 2);
 
-    // Rotating Outer Arcane Rune Characters Track
+        ctx.rotate(-runeRotation * 1.6);
+        ctx.globalAlpha = 0.55;
+        ctx.drawImage(cachedShieldCanvas, -radius * 0.75, -radius * 0.75, radius * 1.5, radius * 1.5);
+        ctx.restore();
+    } else {
+        ctx.strokeStyle = mainColor;
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = secColor;
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius - 8, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.save();
+        ctx.rotate(-runeRotation);
+        for (let l = 0; l < 8; l++) {
+            ctx.save();
+            ctx.rotate((l * Math.PI) / 16);
+            ctx.strokeStyle = l % 2 === 0 ? secColor : mainColor;
+            ctx.lineWidth = 2.5;
+            ctx.strokeRect(-radius * 0.54, -radius * 0.54, radius * 1.08, radius * 1.08);
+            ctx.restore();
+        }
+        ctx.restore();
+    }
+
+    // Outer Arcane Rune Track
     ctx.save();
-    ctx.rotate(runeRotation * 1.2);
+    ctx.rotate(runeRotation * 1.4);
     ctx.strokeStyle = accColor;
     ctx.lineWidth = 5;
     ctx.setLineDash([12, 16, 24, 16]);
     ctx.beginPath();
     ctx.arc(0, 0, radius - 4, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-
-    // Dense Overlapping Multiverse Star Array
-    ctx.save();
-    ctx.rotate(-runeRotation);
-    const layers = 8;
-    for (let l = 0; l < layers; l++) {
-        ctx.save();
-        ctx.rotate((l * Math.PI) / (layers * 2));
-        ctx.strokeStyle = l % 2 === 0 ? secColor : mainColor;
-        ctx.lineWidth = 2.5;
-        ctx.strokeRect(-radius * 0.54, -radius * 0.54, radius * 1.08, radius * 1.08);
-        ctx.restore();
-    }
-    ctx.restore();
-
-    // Core Mechanical Cog & Eye
-    ctx.strokeStyle = mainColor;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius * 0.35, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.save();
-    ctx.rotate(runeRotation * 2);
-    ctx.strokeStyle = accColor;
-    ctx.lineWidth = 3;
-    const teeth = 20;
-    ctx.beginPath();
-    for (let t = 0; t < teeth; t++) {
-        const angle = (t * Math.PI * 2) / teeth;
-        const rInner = radius * 0.22;
-        const rOuter = radius * 0.32;
-        ctx.moveTo(Math.cos(angle) * rInner, Math.sin(angle) * rInner);
-        ctx.lineTo(Math.cos(angle) * rOuter, Math.sin(angle) * rOuter);
-    }
     ctx.stroke();
     ctx.restore();
 
@@ -1040,10 +1008,15 @@ function render() {
             isDualFist = true;
             dualMidX = (p1.x + p2.x) / 2;
             dualMidY = (p1.y + p2.y) / 2;
-        } else if (h1.isOpenPalm && h2.isOpenPalm && h1.isShieldTouch && h2.isShieldTouch && handDistance < 500) {
-            isDualShield = true;
-            dualMidX = (p1.x + p2.x) / 2;
-            dualMidY = (p1.y + p2.y) / 2;
+        } else {
+            // Giga Shield triggers naturally when 2 open palms or shield gestures are brought together
+            const isH1Shield = h1.isOpenPalm || h1.isShieldTouch;
+            const isH2Shield = h2.isOpenPalm || h2.isShieldTouch;
+            if (isH1Shield && isH2Shield && !h1.isFist && !h2.isFist && handDistance < 550) {
+                isDualShield = true;
+                dualMidX = (p1.x + p2.x) / 2;
+                dualMidY = (p1.y + p2.y) / 2;
+            }
         }
     }
 
@@ -1105,12 +1078,13 @@ function render() {
 
         const colors = PALETTES[activeColorPalette];
         let pState = getPersistentState(hand);
+        if (!pState) return;
 
         if (pState.cooldownTimer > 0) {
             pState.cooldownTimer = Math.max(0, pState.cooldownTimer - dtSeconds);
         }
 
-        // Pinch Tap Toggle State
+        // Pinch Tap Toggle State for Floating Cosmic Orb
         if (hand.isPinchTap && !pState.wasPinchTap) {
             pState.cosmicActive = !pState.cosmicActive;
         }
@@ -1126,10 +1100,10 @@ function render() {
             drawCosmicEnergyOrb(ctx, indexX, indexY, pState.cosmicProgress);
         }
 
-        // DOCTOR STRANGE SHIELD TRIGGER REQUIREMENT: Touch between Index Tip & Middle Tip!
+        // DOCTOR STRANGE SHIELD: Activated when Index Tip & Middle Tip Touch!
         const isShieldActive = hand.isShieldTouch && !hand.isFist;
         if (isShieldActive && !isDualShield) {
-            pState.shieldProgress = Math.min(1.0, pState.shieldProgress + 0.08 * dtScale);
+            pState.shieldProgress = Math.min(1.0, pState.shieldProgress + 0.1 * dtScale);
         } else {
             pState.shieldProgress = Math.max(0, pState.shieldProgress - 0.08 * dtScale);
         }
@@ -1192,7 +1166,7 @@ function render() {
             }
         }
 
-        // INDIVIDUAL DOCTOR STRANGE SHIELD (Triggers when Index Tip & Middle Tip Touch!)
+        // INDIVIDUAL DOCTOR STRANGE SHIELD
         if (!isDualShield && pState.shieldProgress > 0.01) {
             ctx.save();
             ctx.globalCompositeOperation = 'lighter';
@@ -1225,7 +1199,7 @@ function render() {
 }
 
 // -------------------------------------------------------------
-// MediaPipe Detection Results
+// MediaPipe Detection Results & Scale-Invariant Gestures
 // -------------------------------------------------------------
 function onHandResults(results) {
     targetHandsList = [];
@@ -1250,21 +1224,28 @@ function onHandResults(results) {
             const pinkyPip = getCoord(landmarks[18]);
             const palmCenter = getCoord(landmarks[9]);
 
-            const indexExt = dist(indexTip, wrist) > dist(indexPip, wrist) * 1.08;
-            const middleExt = dist(middleTip, wrist) > dist(middlePip, wrist) * 1.08;
-            const ringExt = dist(ringTip, wrist) > dist(ringPip, wrist) * 1.08;
-            const pinkyExt = dist(pinkyTip, wrist) > dist(pinkyPip, wrist) * 1.08;
+            // Robust Extension Checks
+            const indexExt = dist(indexTip, wrist) > dist(indexPip, wrist) * 1.05;
+            const middleExt = dist(middleTip, wrist) > dist(middlePip, wrist) * 1.05;
+            const ringExt = dist(ringTip, wrist) > dist(ringPip, wrist) * 1.05;
+            const pinkyExt = dist(pinkyTip, wrist) > dist(pinkyPip, wrist) * 1.05;
 
             const extendedCount = [indexExt, middleExt, ringExt, pinkyExt].filter(Boolean).length;
-
             const isFist = !indexExt && !middleExt && !ringExt && !pinkyExt;
             const isOpenPalm = extendedCount >= 2 && !isFist;
 
-            const fingerTouchDist = dist(indexTip, middleTip);
-            const isShieldTouch = fingerTouchDist < 0.055 && !isFist;
+            // Scale-Invariant Metric (Normalizes based on hand distance to camera)
+            const handScale = Math.max(0.08, dist(wrist, palmCenter));
 
+            // Shield Gesture: Index & Middle Fingers Extended & Touching Together (✌️ with fingers together)
+            const fingerTouchDist = dist(indexTip, middleTip);
+            const normalizedTouchDist = fingerTouchDist / handScale;
+            const isShieldTouch = (normalizedTouchDist < 0.45 || fingerTouchDist < 0.08) && indexExt && middleExt && !isFist;
+
+            // Pinch Gesture: Thumb Tip touches Index Tip
             const pinchDist = dist(thumbTip, indexTip);
-            const isPinchTap = pinchDist < 0.065 && !isFist;
+            const normalizedPinchDist = pinchDist / handScale;
+            const isPinchTap = (normalizedPinchDist < 0.38 || pinchDist < 0.07) && !isFist;
 
             targetHandsList.push({
                 wrist,
@@ -1308,8 +1289,12 @@ async function trackingLoop() {
     }
 }
 
-// Initialize MediaPipe Hands
+// Initialize MediaPipe Hands safely
 function initMediaPipe() {
+    if (typeof Hands === 'undefined') {
+        setTimeout(initMediaPipe, 200);
+        return;
+    }
     try {
         handsDetector = new Hands({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
@@ -1323,6 +1308,10 @@ function initMediaPipe() {
         });
 
         handsDetector.onResults(onHandResults);
+        if (!isCameraActive) {
+            statusBadge.className = 'badge info';
+            statusText.textContent = 'Webcam Siap';
+        }
     } catch (err) {
         console.error("Failed to init MediaPipe Hands:", err);
     }
@@ -1378,13 +1367,14 @@ async function toggleCamera() {
     }
 }
 
-// Mouse Control Listener
+// Mouse Control Listeners with Multi-Spell Interactions
 window.addEventListener('mousemove', (e) => {
     if (!enableMouseControl) return;
     const mouseX = e.clientX / canvas.width;
     const mouseY = e.clientY / canvas.height;
 
     mouseHand.palm = { x: mouseX, y: mouseY };
+    mouseHand.wrist = { x: mouseX, y: Math.min(1.0, mouseY + 0.14) };
     mouseHand.fingertips = [
         { x: mouseX - 0.02, y: mouseY - 0.02 },
         { x: mouseX, y: mouseY },
@@ -1394,14 +1384,28 @@ window.addEventListener('mousemove', (e) => {
     ];
 });
 
-window.addEventListener('mousedown', () => {
+window.addEventListener('mousedown', (e) => {
     if (!enableMouseControl) return;
-    mouseHand.isPinchTap = true;
+    if (e.button === 0) {
+        // Left Click: Pinch / Toggle Cosmic Orb
+        mouseHand.isPinchTap = true;
+    } else if (e.button === 2) {
+        // Right Click: Trigger Doctor Strange Shield
+        mouseHand.isShieldTouch = !mouseHand.isShieldTouch;
+    }
 });
 
-window.addEventListener('mouseup', () => {
+window.addEventListener('mouseup', (e) => {
     if (!enableMouseControl) return;
-    mouseHand.isPinchTap = false;
+    if (e.button === 0) {
+        mouseHand.isPinchTap = false;
+    }
+});
+
+window.addEventListener('contextmenu', (e) => {
+    if (enableMouseControl) {
+        e.preventDefault();
+    }
 });
 
 // UI Controls Event Listeners
@@ -1491,6 +1495,6 @@ btnCloseGuide.addEventListener('click', () => {
     gestureGuide.classList.add('hidden');
 });
 
-// Start App
+// Start App Safely
 initMediaPipe();
 render();
