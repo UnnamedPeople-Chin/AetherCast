@@ -99,10 +99,14 @@ let trackedHands = [];
 let targetHandsList = [];
 let persistentHandStates = new Map();
 let dualFistState = { wasDualFist: false, charge: 0, birthProgress: 0, cooldownTimer: 0 };
+let activeCosmicHandId = null; // Single Global Cosmic Orb Authority
 
 // Safe Mouse Interaction State
 let mouseHand = {
+    id: 'mouse',
     isMouse: true,
+    trackedFrames: 100,
+    lostFrames: 0,
     wrist: { x: 0.5, y: 0.7 },
     palm: { x: 0.5, y: 0.5 },
     fingertips: [
@@ -313,6 +317,7 @@ function getPersistentState(hand) {
             cosmicProgress: 0,
             cosmicActive: false,
             wasPinchTap: false,
+            pinchReleaseFrames: 20,
             shieldProgress: 0
         };
         persistentHandStates.set(key, state);
@@ -933,6 +938,7 @@ function updateHandTrackingInterpolation() {
             if (targetIdx !== -1) {
                 const target = activeTargets[targetIdx];
                 currentHand.lostFrames = 0;
+                currentHand.trackedFrames = (currentHand.trackedFrames || 0) + 1;
 
                 // Adaptive dynamic smoothing: Snappy on fast motion, silky smooth on stillness
                 const moveDist = dist(currentHand.palm, target.palm);
@@ -980,6 +986,7 @@ function updateHandTrackingInterpolation() {
         } else {
             // Hand not detected in this frame: use ghost grace period (prevent instant disappearing)
             currentHand.lostFrames = (currentHand.lostFrames || 0) + 1;
+            currentHand.trackedFrames = 0;
         }
     });
 
@@ -987,6 +994,9 @@ function updateHandTrackingInterpolation() {
     trackedHands = trackedHands.filter(h => {
         if ((h.lostFrames || 0) >= maxGhostFrames) {
             persistentHandStates.delete(`hand_${h.id}`);
+            if (activeCosmicHandId === h.id) {
+                activeCosmicHandId = null;
+            }
             return false;
         }
         return true;
@@ -1001,6 +1011,7 @@ function updateHandTrackingInterpolation() {
             trackedHands.push({
                 id: newId,
                 lostFrames: 0,
+                trackedFrames: 1,
                 palm: { ...target.palm },
                 wrist: { ...target.wrist },
                 fingertips: target.fingertips.map(f => ({ ...f })),
@@ -1077,24 +1088,51 @@ function render() {
     if (activeHandsList.length >= 2) {
         const h1 = activeHandsList[0];
         const h2 = activeHandsList[1];
-        p1 = { x: h1.palm.x * canvas.width, y: h1.palm.y * canvas.height };
-        p2 = { x: h2.palm.x * canvas.width, y: h2.palm.y * canvas.height };
-        const handDistance = Math.hypot(p1.x - p2.x, p1.y - p2.y);
 
-        if (h1.isFist && h2.isFist && handDistance < 450 && dualFistState.cooldownTimer <= 0) {
-            isDualFist = true;
-            dualMidX = (p1.x + p2.x) / 2;
-            dualMidY = (p1.y + p2.y) / 2;
-        } else {
-            // Giga Shield triggers naturally when 2 open palms or shield gestures are brought together
-            const isH1Shield = h1.isOpenPalm || h1.isShieldTouch;
-            const isH2Shield = h2.isOpenPalm || h2.isShieldTouch;
-            if (isH1Shield && isH2Shield && !h1.isFist && !h2.isFist && handDistance < 550) {
-                isDualShield = true;
-                dualMidX = (p1.x + p2.x) / 2;
-                dualMidY = (p1.y + p2.y) / 2;
+        // Strict dual-hand validation:
+        // 1. Both hands must be genuinely detected in the current frame (no ghost frames)
+        // 2. Both hands must have a solid tracking history (>= 8 continuous frames)
+        const bothDetectedNow = (h1.lostFrames || 0) === 0 && (h2.lostFrames || 0) === 0;
+        const bothStablyTracked = (h1.trackedFrames || 0) >= 8 && (h2.trackedFrames || 0) >= 8;
+
+        if (bothDetectedNow && bothStablyTracked) {
+            p1 = { x: h1.palm.x * canvas.width, y: h1.palm.y * canvas.height };
+            p2 = { x: h2.palm.x * canvas.width, y: h2.palm.y * canvas.height };
+            const handDistance = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+            const horizontalDiff = Math.abs(p1.x - p2.x);
+
+            // Ensure these are two distinct hands separated in space (not a split hallucination of one hand or face)
+            const areDistinctHands = handDistance > 80 && horizontalDiff > 45;
+
+            if (areDistinctHands) {
+                // Dual Fist Giga Blackhole: Both hands form fists within fusion distance
+                if (h1.isFist && h2.isFist && handDistance < 420 && dualFistState.cooldownTimer <= 0) {
+                    isDualFist = true;
+                    dualMidX = (p1.x + p2.x) / 2;
+                    dualMidY = (p1.y + p2.y) / 2;
+                } 
+                // Giga Shield: Both hands form Doctor Strange Shield Touch together!
+                // Or palms pressed close together in front (< 180px)
+                else if (!h1.isFist && !h2.isFist) {
+                    const bothShieldTouch = h1.isShieldTouch && h2.isShieldTouch && handDistance < 450;
+                    const pressedPalms = h1.isOpenPalm && h2.isOpenPalm && handDistance < 180;
+                    if (bothShieldTouch || pressedPalms) {
+                        isDualShield = true;
+                        dualMidX = (p1.x + p2.x) / 2;
+                        dualMidY = (p1.y + p2.y) / 2;
+                    }
+                }
             }
         }
+    }
+
+    // Auto-cancel Cosmic Orb if dual fusions activate
+    if (isDualFist || isDualShield) {
+        activeCosmicHandId = null;
+        persistentHandStates.forEach((s) => {
+            s.cosmicActive = false;
+            s.cosmicProgress = 0;
+        });
     }
 
     // DUAL FIST GIGA BLACKHOLE
@@ -1161,16 +1199,53 @@ function render() {
             pState.cooldownTimer = Math.max(0, pState.cooldownTimer - dtSeconds);
         }
 
-        // Pinch Tap Toggle State for Floating Cosmic Orb
-        if (hand.isPinchTap && !pState.wasPinchTap) {
-            pState.cosmicActive = !pState.cosmicActive;
+        // Check if other spells are active on this hand or globally
+        const isFistActive = hand.isFist && pState.cooldownTimer <= 0;
+        const isShieldActive = hand.isShieldTouch && !hand.isFist;
+        const isOtherSpellActive = isDualFist || isDualShield || isFistActive || isShieldActive || pState.fistCharge > 0 || pState.shieldProgress > 0.05;
+
+        // If another spell is active, immediately kill the cosmic orb on this hand
+        if (isOtherSpellActive) {
+            pState.cosmicActive = false;
+            pState.cosmicProgress = 0;
+            if (activeCosmicHandId === hand.id) {
+                activeCosmicHandId = null;
+            }
+        }
+
+        // Pinch Tap Toggle State for Floating Cosmic Orb:
+        // Must be stable for >= 15 frames, no other active spell, and released for at least 8 frames
+        if (!hand.isPinchTap) {
+            pState.pinchReleaseFrames = (pState.pinchReleaseFrames || 0) + 1;
+        }
+
+        const canTriggerPinch = (hand.trackedFrames || 0) >= 15 && !isOtherSpellActive && (pState.pinchReleaseFrames || 0) >= 8;
+
+        if (hand.isPinchTap && !pState.wasPinchTap && canTriggerPinch) {
+            pState.pinchReleaseFrames = 0;
+            if (activeCosmicHandId === hand.id) {
+                // Toggle OFF
+                pState.cosmicActive = false;
+                pState.cosmicProgress = 0;
+                activeCosmicHandId = null;
+            } else {
+                // Toggle ON: ensure NO OTHER HAND has an active cosmic orb!
+                persistentHandStates.forEach((otherState) => {
+                    otherState.cosmicActive = false;
+                    otherState.cosmicProgress = 0;
+                });
+                pState.cosmicActive = true;
+                activeCosmicHandId = hand.id;
+            }
         }
         pState.wasPinchTap = hand.isPinchTap;
 
-        if (pState.cosmicActive) {
-            pState.cosmicProgress = Math.min(1.0, pState.cosmicProgress + 0.08 * dtScale);
+        // Only progress and draw cosmic orb if this hand is the single active hand and no other spell is active
+        if (activeCosmicHandId === hand.id && pState.cosmicActive && !isOtherSpellActive) {
+            pState.cosmicProgress = Math.min(1.0, pState.cosmicProgress + 0.1 * dtScale);
         } else {
-            pState.cosmicProgress = Math.max(0, pState.cosmicProgress - 0.08 * dtScale);
+            pState.cosmicProgress = 0;
+            pState.cosmicActive = false;
         }
 
         if (pState.cosmicProgress > 0.01) {
@@ -1178,14 +1253,13 @@ function render() {
         }
 
         // DOCTOR STRANGE SHIELD: Activated when Index Tip & Middle Tip Touch!
-        const isShieldActive = hand.isShieldTouch && !hand.isFist;
         if (isShieldActive && !isDualShield) {
             pState.shieldProgress = Math.min(1.0, pState.shieldProgress + 0.1 * dtScale);
         } else {
             pState.shieldProgress = Math.max(0, pState.shieldProgress - 0.08 * dtScale);
         }
 
-        const hasActiveEffect = isDualFist || isDualShield || (hand.isFist && pState.cooldownTimer <= 0) || pState.shieldProgress > 0.1 || pState.fistCharge > 0 || pState.cosmicProgress > 0.1;
+        const hasActiveEffect = isDualFist || isDualShield || isFistActive || pState.shieldProgress > 0.1 || pState.fistCharge > 0 || pState.cosmicProgress > 0.1;
 
         if (!hand.isMouse && showSkeleton && !hasActiveEffect) {
             ctx.save();
@@ -1282,7 +1356,35 @@ function onHandResults(results) {
     targetHandsList = [];
 
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        results.multiHandLandmarks.forEach(landmarks => {
+        results.multiHandLandmarks.forEach((landmarks, hIdx) => {
+            // 1. MediaPipe Confidence Score Check (filters low-confidence hallucinations)
+            if (results.multiHandedness && results.multiHandedness[hIdx]) {
+                const handScore = results.multiHandedness[hIdx].score;
+                if (handScore !== undefined && handScore < 0.65) {
+                    return; // Skip low confidence detection
+                }
+            }
+
+            // 2. Anatomical Proportion & Face Hallucination Rejection Filter
+            const rawWrist = landmarks[0];
+            const rawIndexMcp = landmarks[5];
+            const rawMiddleMcp = landmarks[9];
+            const rawPinkyMcp = landmarks[17];
+
+            const palmLength = Math.hypot(rawMiddleMcp.x - rawWrist.x, rawMiddleMcp.y - rawWrist.y);
+            const palmWidth = Math.hypot(rawIndexMcp.x - rawPinkyMcp.x, rawIndexMcp.y - rawPinkyMcp.y);
+
+            // Filter out non-hand noise / tiny artifacts / camera edge glitches
+            if (palmLength < 0.035 || palmLength > 0.55 || palmWidth < 0.025 || palmWidth > 0.45) {
+                return;
+            }
+
+            // Human palm aspect ratio check (knuckle width to wrist-knuckle length is typically 0.35 - 2.1)
+            const palmRatio = palmWidth / palmLength;
+            if (palmRatio < 0.35 || palmRatio > 2.1) {
+                return;
+            }
+
             const getCoord = (lm) => ({
                 x: isMirrored ? 1 - lm.x : lm.x,
                 y: lm.y,
@@ -1317,12 +1419,12 @@ function onHandResults(results) {
             // Shield Gesture: Index & Middle Fingers Extended & Touching Together (✌️ with fingers together)
             const fingerTouchDist = dist(indexTip, middleTip);
             const normalizedTouchDist = fingerTouchDist / handScale;
-            const isShieldTouch = (normalizedTouchDist < 0.45 || fingerTouchDist < 0.08) && indexExt && middleExt && !isFist;
+            const isShieldTouch = (normalizedTouchDist < 0.35 || fingerTouchDist < 0.06) && indexExt && middleExt && !isFist;
 
-            // Pinch Gesture: Thumb Tip touches Index Tip
+            // Pinch Gesture: Thumb Tip touches Index Tip with deliberate precision
             const pinchDist = dist(thumbTip, indexTip);
             const normalizedPinchDist = pinchDist / handScale;
-            const isPinchTap = (normalizedPinchDist < 0.38 || pinchDist < 0.07) && !isFist;
+            const isPinchTap = normalizedPinchDist < 0.22 && pinchDist < 0.045 && !isFist && !isShieldTouch;
 
             targetHandsList.push({
                 wrist,
@@ -1430,8 +1532,8 @@ function initMediaPipe() {
         handsDetector.setOptions({
             maxNumHands: 2,
             modelComplexity: 0,
-            minDetectionConfidence: 0.3,
-            minTrackingConfidence: 0.3
+            minDetectionConfidence: 0.65,
+            minTrackingConfidence: 0.65
         });
 
         handsDetector.onResults(onHandResults);
@@ -1453,6 +1555,10 @@ async function toggleCamera() {
         }
         videoElement.srcObject = null;
         isCameraActive = false;
+        targetHandsList = [];
+        trackedHands = [];
+        persistentHandStates.clear();
+        activeCosmicHandId = null;
         btnWebcam.querySelector('span').textContent = 'Aktifkan Webcam';
         btnWebcam.classList.remove('primary');
         btnWebcam.classList.add('secondary');
