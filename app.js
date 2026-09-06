@@ -302,37 +302,21 @@ function triggerSupernovaExplosion(x, y, intensity = 1.0) {
 
 function getPersistentState(hand) {
     if (!hand) return null;
-    const wrist = hand.wrist || hand.palm || { x: 0.5, y: 0.5 };
-    let bestKey = null;
-    let minDist = 0.25;
-
-    for (let [key, state] of persistentHandStates.entries()) {
-        const lastW = state.lastWrist || { x: 0.5, y: 0.5 };
-        const d = dist(wrist, lastW);
-        if (d < minDist) {
-            minDist = d;
-            bestKey = key;
-        }
+    const key = hand.id !== undefined ? `hand_${hand.id}` : (hand.isMouse ? 'hand_mouse' : 'hand_0');
+    let state = persistentHandStates.get(key);
+    if (!state) {
+        state = {
+            fistCharge: 0,
+            birthProgress: 0,
+            noFistDebounce: 0,
+            cooldownTimer: 0,
+            cosmicProgress: 0,
+            cosmicActive: false,
+            wasPinchTap: false,
+            shieldProgress: 0
+        };
+        persistentHandStates.set(key, state);
     }
-
-    if (!bestKey) {
-        bestKey = 'hand_' + Math.random().toString(36).substr(2, 6);
-    }
-
-    let state = persistentHandStates.get(bestKey) || {
-        lastWrist: { ...wrist },
-        fistCharge: 0,
-        birthProgress: 0,
-        noFistDebounce: 0,
-        cooldownTimer: 0,
-        cosmicProgress: 0,
-        cosmicActive: false,
-        wasPinchTap: false,
-        shieldProgress: 0
-    };
-
-    state.lastWrist = { ...wrist };
-    persistentHandStates.set(bestKey, state);
     return state;
 }
 
@@ -892,52 +876,145 @@ function drawMiniMonitor(ctx) {
 }
 
 // -------------------------------------------------------------
-// Smooth Hand Interpolation
+// Robust Multi-Hand Persistent Tracker (Ghost Grace Period & Adaptive Smoothing)
 // -------------------------------------------------------------
 function updateHandTrackingInterpolation() {
-    if (targetHandsList.length === 0) {
-        trackedHands = [];
-        return;
-    }
+    const activeTargets = [...targetHandsList];
+    const maxGhostFrames = 10; // ~300ms grace period to prevent flickering during fast movements
 
-    if (trackedHands.length !== targetHandsList.length) {
-        trackedHands = targetHandsList.map(h => ({
-            wrist: { ...h.wrist },
-            palm: { ...h.palm },
-            fingertips: h.fingertips.map(f => ({ ...f })),
-            rawLandmarks: h.rawLandmarks,
-            isFist: h.isFist,
-            isOpenPalm: h.isOpenPalm,
-            isShieldTouch: h.isShieldTouch,
-            isPinchTap: h.isPinchTap
-        }));
-    } else {
-        targetHandsList.forEach((targetHand, i) => {
-            const currentHand = trackedHands[i];
-            if (!currentHand) return;
+    const matchedTargets = new Set();
+    const matchedTracked = new Set();
 
-            const lerpAmt = 0.35;
-            currentHand.palm.x = lerp(currentHand.palm.x, targetHand.palm.x, lerpAmt);
-            currentHand.palm.y = lerp(currentHand.palm.y, targetHand.palm.y, lerpAmt);
-            currentHand.wrist.x = lerp(currentHand.wrist.x, targetHand.wrist.x, lerpAmt);
-            currentHand.wrist.y = lerp(currentHand.wrist.y, targetHand.wrist.y, lerpAmt);
+    // 1. Greedy Distance-Based Matching
+    if (trackedHands.length > 0 && activeTargets.length > 0) {
+        let bestDist = Infinity;
+        let bestPair = null;
 
-            currentHand.isFist = targetHand.isFist;
-            currentHand.isOpenPalm = targetHand.isOpenPalm;
-            currentHand.isShieldTouch = targetHand.isShieldTouch;
-            currentHand.isPinchTap = targetHand.isPinchTap;
-            currentHand.rawLandmarks = targetHand.rawLandmarks;
-
-            if (targetHand.fingertips) {
-                targetHand.fingertips.forEach((tip, idx) => {
-                    if (currentHand.fingertips[idx]) {
-                        currentHand.fingertips[idx].x = lerp(currentHand.fingertips[idx].x, tip.x, lerpAmt);
-                        currentHand.fingertips[idx].y = lerp(currentHand.fingertips[idx].y, tip.y, lerpAmt);
-                    }
-                });
+        for (let i = 0; i < trackedHands.length; i++) {
+            for (let j = 0; j < activeTargets.length; j++) {
+                const d = dist(trackedHands[i].palm, activeTargets[j].palm);
+                if (d < bestDist) {
+                    bestDist = d;
+                    bestPair = [i, j];
+                }
             }
-        });
+        }
+
+        if (bestPair) {
+            matchedTracked.add(bestPair[0]);
+            matchedTargets.add(bestPair[1]);
+
+            if (trackedHands.length > 1 && activeTargets.length > 1) {
+                const otherTracked = bestPair[0] === 0 ? 1 : 0;
+                const otherTarget = bestPair[1] === 0 ? 1 : 0;
+                matchedTracked.add(otherTracked);
+                matchedTargets.add(otherTarget);
+            }
+        }
     }
+
+    // 2. Update Matched Hands with Adaptive Smoothing
+    trackedHands.forEach((currentHand, idx) => {
+        if (matchedTracked.has(idx)) {
+            let targetIdx = -1;
+            activeTargets.forEach((t, j) => {
+                if (matchedTargets.has(j)) {
+                    if (trackedHands.length === 1 || activeTargets.length === 1) {
+                        targetIdx = j;
+                    } else {
+                        const d = dist(currentHand.palm, t.palm);
+                        if (targetIdx === -1 || d < dist(currentHand.palm, activeTargets[targetIdx].palm)) {
+                            targetIdx = j;
+                        }
+                    }
+                }
+            });
+
+            if (targetIdx !== -1) {
+                const target = activeTargets[targetIdx];
+                currentHand.lostFrames = 0;
+
+                // Adaptive dynamic smoothing: Snappy on fast motion, silky smooth on stillness
+                const moveDist = dist(currentHand.palm, target.palm);
+                const lerpAmt = Math.min(0.78, Math.max(0.32, moveDist * 3.6));
+
+                currentHand.palm.x = lerp(currentHand.palm.x, target.palm.x, lerpAmt);
+                currentHand.palm.y = lerp(currentHand.palm.y, target.palm.y, lerpAmt);
+                currentHand.wrist.x = lerp(currentHand.wrist.x, target.wrist.x, lerpAmt);
+                currentHand.wrist.y = lerp(currentHand.wrist.y, target.wrist.y, lerpAmt);
+
+                // Smooth all fingertips
+                if (target.fingertips) {
+                    target.fingertips.forEach((tip, fIdx) => {
+                        if (currentHand.fingertips[fIdx]) {
+                            currentHand.fingertips[fIdx].x = lerp(currentHand.fingertips[fIdx].x, tip.x, lerpAmt);
+                            currentHand.fingertips[fIdx].y = lerp(currentHand.fingertips[fIdx].y, tip.y, lerpAmt);
+                        }
+                    });
+                }
+
+                // Smooth all 21 raw landmarks for silky hand skeleton rendering
+                if (currentHand.rawLandmarks && target.rawLandmarks) {
+                    for (let lm = 0; lm < 21; lm++) {
+                        if (currentHand.rawLandmarks[lm] && target.rawLandmarks[lm]) {
+                            currentHand.rawLandmarks[lm].x = lerp(currentHand.rawLandmarks[lm].x, target.rawLandmarks[lm].x, lerpAmt);
+                            currentHand.rawLandmarks[lm].y = lerp(currentHand.rawLandmarks[lm].y, target.rawLandmarks[lm].y, lerpAmt);
+                        }
+                    }
+                } else {
+                    currentHand.rawLandmarks = target.rawLandmarks ? target.rawLandmarks.map(p => ({ ...p })) : null;
+                }
+
+                // Gesture Hysteresis & Debounce (Eliminates flickering)
+                currentHand.fistConfidence = target.isFist ? Math.min(5, (currentHand.fistConfidence || 0) + 1) : Math.max(0, (currentHand.fistConfidence || 0) - 1);
+                currentHand.isFist = currentHand.fistConfidence >= 2;
+
+                currentHand.shieldConfidence = target.isShieldTouch ? Math.min(5, (currentHand.shieldConfidence || 0) + 1) : Math.max(0, (currentHand.shieldConfidence || 0) - 1);
+                currentHand.isShieldTouch = currentHand.shieldConfidence >= 2;
+
+                currentHand.openPalmConfidence = target.isOpenPalm ? Math.min(5, (currentHand.openPalmConfidence || 0) + 1) : Math.max(0, (currentHand.openPalmConfidence || 0) - 1);
+                currentHand.isOpenPalm = currentHand.openPalmConfidence >= 2;
+
+                currentHand.isPinchTap = target.isPinchTap;
+            }
+        } else {
+            // Hand not detected in this frame: use ghost grace period (prevent instant disappearing)
+            currentHand.lostFrames = (currentHand.lostFrames || 0) + 1;
+        }
+    });
+
+    // 3. Remove hands that have exceeded the ghost grace period and cleanup their persistent state
+    trackedHands = trackedHands.filter(h => {
+        if ((h.lostFrames || 0) >= maxGhostFrames) {
+            persistentHandStates.delete(`hand_${h.id}`);
+            return false;
+        }
+        return true;
+    });
+
+    // 4. Register new incoming targets that weren't matched
+    activeTargets.forEach((target, j) => {
+        if (!matchedTargets.has(j) && trackedHands.length < 2) {
+            const usedIds = new Set(trackedHands.map(h => h.id));
+            const newId = usedIds.has(0) ? 1 : 0;
+
+            trackedHands.push({
+                id: newId,
+                lostFrames: 0,
+                palm: { ...target.palm },
+                wrist: { ...target.wrist },
+                fingertips: target.fingertips.map(f => ({ ...f })),
+                rawLandmarks: target.rawLandmarks ? target.rawLandmarks.map(lm => ({ ...lm })) : null,
+                isFist: target.isFist,
+                isOpenPalm: target.isOpenPalm,
+                isShieldTouch: target.isShieldTouch,
+                isPinchTap: target.isPinchTap,
+                fistConfidence: target.isFist ? 3 : 0,
+                shieldConfidence: target.isShieldTouch ? 3 : 0,
+                openPalmConfidence: target.isOpenPalm ? 3 : 0
+            });
+        }
+    });
 }
 
 // -------------------------------------------------------------
