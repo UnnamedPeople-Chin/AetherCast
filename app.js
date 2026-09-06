@@ -31,39 +31,6 @@ shieldImg.onerror = () => {
     console.warn("shield_mandala.png not loaded, using procedural vector mandala.");
 };
 
-// Preload & Offscreen Cache for 3D Blackhole Accretion Ring & Relativistic Jet Assets
-const blackholeRingImg = new Image();
-blackholeRingImg.src = 'Assets/black-hole/textures/blackholering_1_color.png';
-let isBlackholeRingLoaded = false;
-const cachedBlackholeRingCanvas = document.createElement('canvas');
-cachedBlackholeRingCanvas.width = 600;
-cachedBlackholeRingCanvas.height = 600;
-const cachedBlackholeRingCtx = cachedBlackholeRingCanvas.getContext('2d');
-
-blackholeRingImg.onload = () => {
-    cachedBlackholeRingCtx.drawImage(blackholeRingImg, 0, 0, 600, 600);
-    isBlackholeRingLoaded = true;
-};
-blackholeRingImg.onerror = () => {
-    console.warn("blackholering_1_color.png not loaded, using procedural accretion rings.");
-};
-
-const blackholeLightImg = new Image();
-blackholeLightImg.src = 'Assets/black-hole/textures/blackholelight_1_color.png';
-let isBlackholeLightLoaded = false;
-const cachedBlackholeLightCanvas = document.createElement('canvas');
-cachedBlackholeLightCanvas.width = 512;
-cachedBlackholeLightCanvas.height = 512;
-const cachedBlackholeLightCtx = cachedBlackholeLightCanvas.getContext('2d');
-
-blackholeLightImg.onload = () => {
-    cachedBlackholeLightCtx.drawImage(blackholeLightImg, 0, 0, 512, 512);
-    isBlackholeLightLoaded = true;
-};
-blackholeLightImg.onerror = () => {
-    console.warn("blackholelight_1_color.png not loaded, using procedural plasma light.");
-};
-
 // UI Controls
 const colorBtns = document.querySelectorAll('.color-btn');
 const sliderParticles = document.getElementById('slider-particles');
@@ -920,7 +887,7 @@ function drawBlackhole(ctx, x, y, chargeRatio = 0, birthProgress = 1.0) {
 }
 
 // -------------------------------------------------------------
-// GIGA DUAL-HAND INTERSTELLAR BLACKHOLE FUSION RENDERER (ULTRA-FIERCE 3D TEXTURE ENGINE)
+// GIGA DUAL-HAND INTERSTELLAR BLACKHOLE FUSION RENDERER (PROCEDURAL ULTRA-FIERCE SINGULARITY)
 // -------------------------------------------------------------
 function drawGigaBlackhole(ctx, x1, y1, x2, y2, midX, midY, chargeRatio = 0, birthProgress = 1.0) {
     const colors = PALETTES[activeColorPalette];
@@ -928,166 +895,255 @@ function drawGigaBlackhole(ctx, x1, y1, x2, y2, midX, midY, chargeRatio = 0, bir
     const secColor = colors[1] || colors[0];
     const accColor = colors[2] || '#ffffff';
     
-    const baseRadius = 120 * Math.min(1.0, birthProgress * 1.2);
-    const radius = baseRadius + chargeRatio * 85;
+    const baseRadius = 112 * Math.min(1.0, birthProgress * 1.2);
+    const pulse = Math.sin(performance.now() * 0.008) * (3 + chargeRatio * 6);
+    const radius = baseRadius + chargeRatio * 75 + pulse;
 
     ctx.save();
 
-    // 1. High-Voltage Jagged Lightning Arcs connecting both fists to Singularity
+    // 1. High-Voltage Crackling Lightning Tethers between both fists and the singularity
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    const drawJaggedLightning = (fromX, fromY, toX, toY, width, color) => {
-        const segments = 6;
+    const drawFierceLightning = (fromX, fromY, toX, toY, width, color, jitterAmt) => {
+        const segments = 7;
         ctx.strokeStyle = color;
         ctx.lineWidth = width;
         ctx.beginPath();
         ctx.moveTo(fromX, fromY);
         for (let i = 1; i < segments; i++) {
             const frac = i / segments;
-            const jitter = (35 + chargeRatio * 30) * birthProgress;
-            const nx = fromX + (toX - fromX) * frac + (Math.random() - 0.5) * jitter;
-            const ny = fromY + (toY - fromY) * frac + (Math.random() - 0.5) * jitter;
+            const nx = fromX + (toX - fromX) * frac + (Math.random() - 0.5) * jitterAmt;
+            const ny = fromY + (toY - fromY) * frac + (Math.random() - 0.5) * jitterAmt;
             ctx.lineTo(nx, ny);
+
+            // Occasional lightning branching fork
+            if (Math.random() < 0.25 && chargeRatio > 0.1) {
+                ctx.moveTo(nx, ny);
+                ctx.lineTo(nx + (Math.random() - 0.5) * 35, ny + (Math.random() - 0.5) * 35);
+                ctx.moveTo(nx, ny);
+            }
         }
         ctx.lineTo(toX, toY);
         ctx.stroke();
     };
 
-    drawJaggedLightning(x1, y1, midX, midY, (6 + chargeRatio * 5) * birthProgress, secColor);
-    drawJaggedLightning(x1, y1, midX, midY, 2.5 * birthProgress, '#ffffff');
-    drawJaggedLightning(x2, y2, midX, midY, (6 + chargeRatio * 5) * birthProgress, secColor);
-    drawJaggedLightning(x2, y2, midX, midY, 2.5 * birthProgress, '#ffffff');
+    const jitter = (25 + chargeRatio * 35) * birthProgress;
+    // Outer lightning aura
+    drawFierceLightning(x1, y1, midX, midY, (6 + chargeRatio * 5) * birthProgress, secColor, jitter);
+    drawFierceLightning(x2, y2, midX, midY, (6 + chargeRatio * 5) * birthProgress, secColor, jitter);
+    // Inner intense core
+    drawFierceLightning(x1, y1, midX, midY, 2.5 * birthProgress, '#ffffff', jitter * 0.7);
+    drawFierceLightning(x2, y2, midX, midY, 2.5 * birthProgress, '#ffffff', jitter * 0.7);
 
-    // Direct energy arc between fists
-    if (Math.random() < 0.7) {
-        drawJaggedLightning(x1, y1, x2, y2, (3.5 + chargeRatio * 3) * birthProgress, mainColor);
+    // Direct chaotic arc jumping between both fists
+    if (Math.random() < 0.65) {
+        drawFierceLightning(x1, y1, x2, y2, (3.5 + chargeRatio * 3) * birthProgress, mainColor, jitter * 1.2);
     }
     ctx.restore();
 
-    // Camera / Singularity Tremor on high charge
+    // 2. Gravitational Singularity Tremor & Screen Shake
     let shakeX = 0, shakeY = 0;
     if (chargeRatio > 0.05) {
-        shakeX = (Math.random() - 0.5) * chargeRatio * 10 * birthProgress;
-        shakeY = (Math.random() - 0.5) * chargeRatio * 10 * birthProgress;
+        const shakeMag = chargeRatio * 8 * birthProgress;
+        shakeX = (Math.random() - 0.5) * shakeMag;
+        shakeY = (Math.random() - 0.5) * shakeMag;
     }
 
     ctx.translate(midX + shakeX, midY + shakeY);
-    blackholeRotation += (0.05 + chargeRatio * 0.08) * dtScale;
+    blackholeRotation += (0.045 + chargeRatio * 0.065) * dtScale;
 
-    // 2. Gravitational Pulsing Halo (Volumetric Outer Lensing)
+    // 3. Volumetric Gravitational Lensing Halo (Massive Multi-Stop Gradient)
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    const outerLensing = ctx.createRadialGradient(0, 0, radius * 0.8, 0, 0, radius * 3.2);
+    const outerLensing = ctx.createRadialGradient(0, 0, radius * 0.7, 0, 0, radius * 3.2);
     outerLensing.addColorStop(0, mainColor);
-    outerLensing.addColorStop(0.35, secColor);
-    outerLensing.addColorStop(0.7, 'rgba(10, 15, 45, 0.4)');
+    outerLensing.addColorStop(0.3, secColor);
+    outerLensing.addColorStop(0.65, 'rgba(255, 255, 255, 0.08)');
     outerLensing.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = outerLensing;
     ctx.beginPath();
     ctx.arc(0, 0, radius * 3.2, 0, Math.PI * 2);
     ctx.fill();
 
-    // 3. Relativistic Bipolar Plasma Jets (North & South Poles)
-    if (isBlackholeLightLoaded) {
-        const jetScale = (1.4 + chargeRatio * 1.8) * birthProgress;
-        const jetAlpha = (0.7 + chargeRatio * 0.3) * birthProgress;
-        
-        // North Polar Jet
-        ctx.save();
-        ctx.translate(0, -radius * 0.35);
-        ctx.scale(0.85, jetScale);
-        ctx.globalAlpha = jetAlpha;
-        ctx.drawImage(cachedBlackholeLightCanvas, -256, -512, 512, 512);
-        ctx.restore();
-
-        // South Polar Jet
-        ctx.save();
-        ctx.translate(0, radius * 0.35);
-        ctx.scale(0.85, -jetScale);
-        ctx.globalAlpha = jetAlpha;
-        ctx.drawImage(cachedBlackholeLightCanvas, -256, -512, 512, 512);
-        ctx.restore();
-    }
+    // Gravitational Shockwave Rings expanding outwards
+    const ringTime = (performance.now() * 0.003) % 1.0;
+    const pulseRingR = radius * (1.1 + ringTime * 1.6);
+    ctx.strokeStyle = secColor;
+    ctx.lineWidth = (3 + chargeRatio * 3) * (1 - ringTime) * birthProgress;
+    ctx.globalAlpha = (0.7 - ringTime * 0.6) * birthProgress;
+    ctx.beginPath();
+    ctx.arc(0, 0, pulseRingR, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.restore();
 
-    // 4. Background Einstein Lensing Arc (Bending over Event Horizon)
+    // 4. Background Relativistic Lensing Arcs (Einstein Ring Distortion bending above/below)
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    if (isBlackholeRingLoaded) {
-        ctx.save();
-        ctx.scale(1.4, 0.58);
-        ctx.rotate(blackholeRotation * 0.7);
-        ctx.globalAlpha = (0.75 + chargeRatio * 0.25) * birthProgress;
-        ctx.drawImage(cachedBlackholeRingCanvas, -radius * 1.8, -radius * 1.8, radius * 3.6, radius * 3.6);
-        ctx.restore();
-    } else {
-        ctx.strokeStyle = secColor;
-        ctx.lineWidth = 14 * birthProgress;
+
+    // Upper Gravitational Arc (Light bent over the top of the event horizon)
+    ctx.save();
+    ctx.rotate(0.12);
+    ctx.strokeStyle = mainColor;
+    ctx.lineWidth = (12 + chargeRatio * 8) * birthProgress;
+    ctx.beginPath();
+    ctx.ellipse(0, -radius * 0.35, radius * 1.75, radius * 0.85, 0, Math.PI * 0.95, Math.PI * 2.05);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = (4 + chargeRatio * 3) * birthProgress;
+    ctx.beginPath();
+    ctx.ellipse(0, -radius * 0.35, radius * 1.72, radius * 0.82, 0, Math.PI * 0.98, Math.PI * 2.02);
+    ctx.stroke();
+    ctx.restore();
+
+    // Lower Gravitational Arc (Light bent under the bottom)
+    ctx.save();
+    ctx.rotate(0.12);
+    ctx.strokeStyle = secColor;
+    ctx.lineWidth = (10 + chargeRatio * 6) * birthProgress;
+    ctx.beginPath();
+    ctx.ellipse(0, radius * 0.35, radius * 1.65, radius * 0.75, 0, 0, Math.PI);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = (3 + chargeRatio * 2) * birthProgress;
+    ctx.beginPath();
+    ctx.ellipse(0, radius * 0.35, radius * 1.62, radius * 0.72, 0, 0, Math.PI);
+    ctx.stroke();
+    ctx.restore();
+
+    // 5. Dynamic Counter-Rotating Differential Accretion Vortex Rings
+    // Ring 1: Fast Outer Plasma Stream
+    ctx.save();
+    ctx.rotate(blackholeRotation * 1.6);
+    ctx.strokeStyle = mainColor;
+    ctx.lineWidth = (8 + chargeRatio * 5) * birthProgress;
+    ctx.setLineDash([28, 16, 42, 20]);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, radius * 2.1, radius * 0.58, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // Ring 2: Counter-Rotating Secondary Plasma Filament
+    ctx.save();
+    ctx.rotate(-blackholeRotation * 2.2);
+    ctx.strokeStyle = secColor;
+    ctx.lineWidth = (6 + chargeRatio * 4) * birthProgress;
+    ctx.setLineDash([18, 14, 32, 14]);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, radius * 1.85, radius * 0.52, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // Ring 3: Hyper-Speed Inner Accretion Filament
+    ctx.save();
+    ctx.rotate(blackholeRotation * 3.0);
+    ctx.strokeStyle = accColor;
+    ctx.lineWidth = 3.5 * birthProgress;
+    ctx.setLineDash([12, 18, 24, 12]);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, radius * 1.45, radius * 0.42, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // 6. Solar Prominence Plasma Jets / Coronal Eruptions
+    for (let j = 0; j < 6; j++) {
+        const pAngle = blackholeRotation * 1.5 + (j * Math.PI / 3);
+        const pLen = radius * (1.3 + Math.sin(performance.now() * 0.006 + j) * 0.45);
+        ctx.strokeStyle = j % 2 === 0 ? mainColor : secColor;
+        ctx.lineWidth = (4 + chargeRatio * 3) * birthProgress;
         ctx.beginPath();
-        ctx.ellipse(0, 0, radius * 1.9, radius * 0.65, blackholeRotation * 0.4, 0, Math.PI * 2);
+        ctx.moveTo(Math.cos(pAngle) * radius * 0.9, Math.sin(pAngle) * radius * 0.9);
+        const cpX = Math.cos(pAngle + 0.35) * pLen;
+        const cpY = Math.sin(pAngle + 0.35) * pLen;
+        const epX = Math.cos(pAngle + 0.7) * radius * 1.1;
+        const epY = Math.sin(pAngle + 0.7) * radius * 1.1;
+        ctx.quadraticCurveTo(cpX, cpY, epX, epY);
         ctx.stroke();
     }
     ctx.restore();
 
-    // 5. PITCH BLACK EVENT HORIZON VOID (Absorbs All Light in Space)
+    // 7. PITCH-BLACK EVENT HORIZON VOID (Absorbs All Light with Pure Zero-Albedo Shadow)
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
     ctx.beginPath();
-    ctx.arc(0, 0, radius * 0.96, 0, Math.PI * 2);
+    ctx.arc(0, 0, radius * 0.94, 0, Math.PI * 2);
     ctx.fillStyle = '#000000';
     ctx.fill();
 
-    const shadowGrad = ctx.createRadialGradient(0, 0, radius * 0.5, 0, 0, radius * 0.96);
-    shadowGrad.addColorStop(0, '#000000');
-    shadowGrad.addColorStop(1, 'rgba(0,0,0,0.95)');
-    ctx.fillStyle = shadowGrad;
+    // Deep Shadow Falloff
+    const shadowFalloff = ctx.createRadialGradient(0, 0, radius * 0.4, 0, 0, radius * 0.94);
+    shadowFalloff.addColorStop(0, '#000000');
+    shadowFalloff.addColorStop(0.85, '#000000');
+    shadowFalloff.addColorStop(1, 'rgba(0, 0, 0, 0.9)');
+    ctx.fillStyle = shadowFalloff;
     ctx.fill();
     ctx.restore();
 
-    // 6. Foreground Main Accretion Disk (Tilted with Relativistic Doppler Beaming)
+    // 8. Foreground Accretion Disk (Cutting across front of Event Horizon)
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    if (isBlackholeRingLoaded) {
-        ctx.save();
-        ctx.scale(1.55, 0.44);
-        ctx.rotate(-blackholeRotation * 1.3);
-        ctx.globalAlpha = 0.98 * birthProgress;
-        ctx.drawImage(cachedBlackholeRingCanvas, -radius * 1.5, -radius * 1.5, radius * 3.0, radius * 3.0);
-        ctx.restore();
-    } else {
-        ctx.strokeStyle = mainColor;
-        ctx.lineWidth = 16 * birthProgress;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, radius * 1.8, radius * 0.45, 0.12, 0, Math.PI * 2);
-        ctx.stroke();
-    }
-
-    // 7. Relativistic Doppler Beaming Flare (Advancing Side is intensely brighter!)
-    const dopplerAngle = 0.12;
     ctx.save();
-    ctx.rotate(dopplerAngle);
-    const flareGrad = ctx.createRadialGradient(-radius * 1.2, 0, radius * 0.1, -radius * 1.2, 0, radius * 0.95);
+    ctx.rotate(0.12);
+
+    // Front Main Plasma Belt
+    ctx.strokeStyle = mainColor;
+    ctx.lineWidth = (16 + chargeRatio * 10) * birthProgress;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, radius * 1.95, radius * 0.44, 0, 0, Math.PI);
+    ctx.stroke();
+
+    ctx.strokeStyle = secColor;
+    ctx.lineWidth = (10 + chargeRatio * 6) * birthProgress;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, radius * 1.75, radius * 0.36, 0, 0, Math.PI);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = (4 + chargeRatio * 3) * birthProgress;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, radius * 1.6, radius * 0.28, 0, 0, Math.PI);
+    ctx.stroke();
+    ctx.restore();
+
+    // 9. Relativistic Doppler Beaming Blinding Glare (Approaching Side Flare)
+    ctx.save();
+    ctx.rotate(0.12);
+    const flareX = -radius * 1.15;
+    const flareGrad = ctx.createRadialGradient(flareX, 0, radius * 0.08, flareX, 0, radius * 1.1);
     flareGrad.addColorStop(0, '#ffffff');
-    flareGrad.addColorStop(0.4, secColor);
+    flareGrad.addColorStop(0.25, accColor);
+    flareGrad.addColorStop(0.55, secColor);
     flareGrad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = flareGrad;
     ctx.beginPath();
-    ctx.ellipse(-radius * 1.2, 0, radius * 0.85, radius * 0.38, 0, 0, Math.PI * 2);
+    ctx.ellipse(flareX, 0, radius * 1.0, radius * 0.48, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
-    // 8. Razor-Sharp Photon Ring & Energetic Spikes
+    // 10. Blinding Razor-Sharp Photon Sphere Rim & Relativistic Arc Spikes
     ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = (3.5 + chargeRatio * 3) * birthProgress;
+    ctx.lineWidth = (4 + chargeRatio * 4) * birthProgress;
     ctx.beginPath();
-    ctx.arc(0, 0, radius * 0.98, 0, Math.PI * 2);
+    ctx.arc(0, 0, radius * 0.96, 0, Math.PI * 2);
     ctx.stroke();
 
-    ctx.strokeStyle = mainColor;
-    ctx.lineWidth = (6 + chargeRatio * 5) * birthProgress;
+    ctx.strokeStyle = secColor;
+    ctx.lineWidth = (7 + chargeRatio * 6) * birthProgress;
     ctx.beginPath();
-    ctx.arc(0, 0, radius * 1.05, 0, Math.PI * 2);
+    ctx.arc(0, 0, radius * 1.04, 0, Math.PI * 2);
     ctx.stroke();
+
+    // Continuous Eruption of High-Energy Singularity Sparks
+    for (let s = 0; s < 3; s++) {
+        if (particles.length < targetParticleCount) {
+            const sAngle = Math.random() * Math.PI * 2;
+            const sDist = radius * (0.95 + Math.random() * 0.35);
+            const p = new Particle();
+            p.reset(midX + Math.cos(sAngle) * sDist, midY + Math.sin(sAngle) * sDist, 2.4);
+            particles.push(p);
+        }
+    }
 
     ctx.restore();
     ctx.restore();
