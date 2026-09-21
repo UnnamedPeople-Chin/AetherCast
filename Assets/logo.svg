@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <radialGradient id="bgGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#0f172a" stop-opacity="0.8"/>
+      <stop offset="60%" stop-color="#070b14" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#030712" stop-opacity="1"/>
+    </radialGradient>
+
+    <!-- Neon Gradients -->
+    <linearGradient id="neonCyanPurple" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f3ff"/>
+      <stop offset="50%" stop-color="#7928ca"/>
+      <stop offset="100%" stop-color="#ff0080"/>
+    </linearGradient>
+
+    <linearGradient id="arcaneGold" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffaa00"/>
+      <stop offset="50%" stop-color="#ffd700"/>
+      <stop offset="100%" stop-color="#ff5500"/>
+    </linearGradient>
+
+    <linearGradient id="coreGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="30%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+
+    <!-- Bloom Glow Filters -->
+    <filter id="superGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur1"/>
+      <feGaussianBlur stdDeviation="20" result="blur2"/>
+      <feMerge>
+        <feMergeNode in="blur2"/>
+        <feMergeNode in="blur1"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Canvas Background Badge -->
+  <rect width="512" height="512" rx="100" fill="url(#bgGlow)"/>
+  <rect width="504" height="504" x="4" y="4" rx="96" fill="none" stroke="url(#neonCyanPurple)" stroke-width="2" stroke-opacity="0.3"/>
+
+  <!-- Celestial Arcane Rings -->
+  <g transform="translate(256, 256)">
+    <!-- Outer Orbit Ring with Dash -->
+    <circle r="215" fill="none" stroke="#00f3ff" stroke-width="1.5" stroke-opacity="0.25" stroke-dasharray="8 12"/>
+    <circle r="200" fill="none" stroke="#a855f7" stroke-width="2" stroke-opacity="0.35" stroke-dasharray="120 40 60 30"/>
+
+    <!-- Concentric Compass Markers -->
+    <circle r="182" fill="none" stroke="url(#arcaneGold)" stroke-width="1.5" stroke-opacity="0.5"/>
+    <line x1="0" y1="-218" x2="0" y2="-192" stroke="#00f3ff" stroke-width="3" stroke-linecap="round" filter="url(#softGlow)"/>
+    <line x1="0" y1="192" x2="0" y2="218" stroke="#00f3ff" stroke-width="3" stroke-linecap="round" filter="url(#softGlow)"/>
+    <line x1="-218" y1="0" x2="-192" y2="0" stroke="#00f3ff" stroke-width="3" stroke-linecap="round" filter="url(#softGlow)"/>
+    <line x1="192" y1="0" x2="218" y2="0" stroke="#00f3ff" stroke-width="3" stroke-linecap="round" filter="url(#softGlow)"/>
+
+    <!-- Mystic Geometric Star (Doctor Strange Motif) -->
+    <g opacity="0.35">
+      <rect x="-115" y="-115" width="230" height="230" fill="none" stroke="#ffd700" stroke-width="1.5"/>
+      <rect x="-115" y="-115" width="230" height="230" fill="none" stroke="#00f3ff" stroke-width="1.5" transform="rotate(30)"/>
+      <rect x="-115" y="-115" width="230" height="230" fill="none" stroke="#ff0080" stroke-width="1.5" transform="rotate(60)"/>
+    </g>
+
+    <!-- Gravitational Accretion Disk / Event Horizon (Blackhole Motif) -->
+    <ellipse cx="0" cy="20" rx="140" ry="42" fill="none" stroke="url(#neonCyanPurple)" stroke-width="4" filter="url(#superGlow)" opacity="0.75" transform="rotate(-15)"/>
+    <ellipse cx="0" cy="20" rx="125" ry="32" fill="none" stroke="#00f3ff" stroke-width="2" stroke-dasharray="24 16 8 16" filter="url(#softGlow)" transform="rotate(-15)"/>
+
+    <!-- Central Pitch-Black Singularity Void -->
+    <circle r="44" fill="#02040a" stroke="#00f3ff" stroke-width="2.5" filter="url(#softGlow)"/>
+    <circle r="40" fill="#000000"/>
+
+    <!-- Stylized Celestial Cybernetic Hand (MediaPipe / AetherCast Motif) -->
+    <g filter="url(#superGlow)" stroke="#00f3ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <!-- Palm Node Matrix -->
+      <path d="M-28 65 L-40 18 L-22 -22 L0 -28 L22 -22 L40 18 L28 65 Z" stroke-opacity="0.6" fill="#031525" fill-opacity="0.4"/>
+      
+      <!-- Thumb Ray & Tip -->
+      <path d="M-40 18 L-68 -6 L-78 -45"/>
+      <circle cx="-78" cy="-45" r="5" fill="#ffffff" stroke="#00f3ff" stroke-width="2"/>
+      
+      <!-- Index Finger Ray & Tip (Cosmic Orb Spark Source) -->
+      <path d="M-22 -22 L-36 -78 L-36 -128"/>
+      <circle cx="-36" cy="-128" r="6" fill="#ffffff" stroke="#00f3ff" stroke-width="3"/>
+      
+      <!-- Middle Finger Ray & Tip -->
+      <path d="M0 -28 L0 -88 L0 -142"/>
+      <circle cx="0" cy="-142" r="5" fill="#ffffff" stroke="#a855f7" stroke-width="2"/>
+      
+      <!-- Ring Finger Ray & Tip -->
+      <path d="M22 -22 L28 -76 L28 -124"/>
+      <circle cx="28" cy="-124" r="5" fill="#ffffff" stroke="#ff0080" stroke-width="2"/>
+      
+      <!-- Pinky Ray & Tip -->
+      <path d="M40 18 L62 -18 L68 -82"/>
+      <circle cx="68" cy="-82" r="4.5" fill="#ffffff" stroke="#00f3ff" stroke-width="2"/>
+
+      <!-- Wrist Base -->
+      <path d="M-28 65 L-15 105 L15 105 L28 65"/>
+      <circle cx="0" cy="105" r="4" fill="#00f3ff"/>
+    </g>
+
+    <!-- Floating Cosmic Energy Orb above Index Fingertip -->
+    <g transform="translate(-36, -145)" filter="url(#superGlow)">
+      <!-- Outer Pulsing Halo -->
+      <circle r="22" fill="#00f3ff" fill-opacity="0.25"/>
+      <circle r="14" fill="url(#neonCyanPurple)" fill-opacity="0.7"/>
+      <circle r="7" fill="#ffffff"/>
+      <!-- Energy Lightning Sparks -->
+      <line x1="-12" y1="-10" x2="-4" y2="-2" stroke="#ffffff" stroke-width="1.5"/>
+      <line x1="10" y1="-8" x2="3" y2="0" stroke="#00f3ff" stroke-width="1.5"/>
+      <line x1="-8" y1="12" x2="-2" y2="3" stroke="#ff0080" stroke-width="1.5"/>
+    </g>
+
+    <!-- Stardust Sparks & Nodes in Space -->
+    <g fill="#00f3ff" opacity="0.8">
+      <circle cx="-135" cy="-75" r="2" filter="url(#softGlow)"/>
+      <circle cx="145" cy="-90" r="2.5" filter="url(#softGlow)"/>
+      <circle cx="-160" cy="85" r="1.8" filter="url(#softGlow)"/>
+      <circle cx="150" cy="110" r="2.2" filter="url(#softGlow)"/>
+      <circle cx="-70" cy="165" r="2.5" filter="url(#softGlow)"/>
+      <circle cx="85" cy="-160" r="2" filter="url(#softGlow)"/>
+    </g>
+  </g>
+</svg>
