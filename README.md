@@ -5,7 +5,7 @@
 <h1 align="center">AETHERCAST</h1>
 
 <p align="center">
-  <strong>Realtime Hand-Tracking Sandbox & Particle Physics Engine</strong><br>
+  <strong>Real-Time Hand-Tracking Sandbox & Particle Physics Engine</strong><br>
   Interactive gesture-driven visual spellcasting powered by MediaPipe Hands, HTML5 Canvas 2D, and Electron.
 </p>
 
@@ -24,104 +24,104 @@
   <img src="Assets/banner_preview.svg" alt="AetherCast Showcase Preview" width="100%"/>
 </p>
 
-AetherCast transforms ordinary webcam video into a responsive visual sandbox. By decoupling hand tracking from canvas rendering, the engine tracks 21 distinct 3D hand joints and renders complex particle systems, procedural black holes, and mandala shields at up to 144+ FPS without frame drops.
+AetherCast transforms standard webcam video into a responsive, high-performance visual sandbox. By decoupling hand tracking from canvas rendering, the engine tracks 21 distinct 3D hand joints and computes complex particle physics, procedural black holes, and mandala shields at up to 144+ FPS without frame drops.
 
 ---
 
 ## 🖐️ Gesture System & Visual Effects
 
-| Gestur Tangan | Nama Efek Visual | Mekanisme & Parameter Trigger |
+| Gesture | Visual Effect | Mechanics & Trigger Parameters |
 |---|---|---|
-| **Mengepal (Fist)** | **Gargantua Blackhole** | Event horizon hitam pekat (`#000000`) dengan piringan akresi berputar. Waktu pengisian energi 3.8 detik; butuh minimal 50% charge untuk memicu ledakan Supernova saat kepalan dibuka. Delay pendinginan 3.0 detik. |
-| **Telapak Terbuka + Putaran Pergelangan 90°** | **Doctor Strange Mandala Shield** | Formasi mandala ganda berputar dengan aksara kuno dan percikan bunga api. Membutuhkan putaran pergelangan tangan minimal 90° untuk mencegah trigger tidak sengaja saat tangan diam. |
-| **Cubit Ujung Jempol & Telunjuk (Pinch)** | **Floating Cosmic Energy Orb** | Bola plasma kosmik menyala di atas ujung jari telunjuk. Mengorbit secara konsisten mengikuti pergerakan tangan kiri maupun kanan. |
-| **Kibaskan Tangan / Cubit Tangan Penerima** | **Inter-Hand Orb Throw & Transfer** | Melempar bola kosmik melintasi layar sebagai proyektil komet dengan lintasan parabolik, ekor partikel debu bintang, dan sistem homing dinamis ke ujung telunjuk tangan lawan. |
-| **Dua Tangan Mengepal Rapat** | **Supermassive Giga Blackhole** | Simulasi vektor prosedural: lengkungan lensa gravitasi Einstein atas-bawah, 3 cincin pusaran akresi diferensial berlawanan arah, loop korona surya plasma, dan sambaran petir tegangan tinggi antar kepalan tangan. |
-| **Dua Telapak Terbuka Rapat** | **Multiverse Giga Shield Array** | Menggabungkan perisai kedua tangan menjadi formasi barikade mandala konsentris raksasa. |
+| **Fist (Closed Hand)** | **Gargantua Blackhole** | Pitch-black event horizon void (`#000000`) surrounded by rotating gravitational accretion rings. 3.8-second full charge duration; requires at least 50% charge to trigger a supernova explosion when opening the fist. Features a 3.0-second cooldown delay. |
+| **Open Palm + 90° Wrist Rotation** | **Doctor Strange Mandala Shield** | Concentric rotating sacred geometry runes with ancient glyphs and spark emitters. Requires a deliberate 90° wrist twist to prevent accidental triggers during natural hand resting. |
+| **Thumb & Index Pinch Tap** | **Floating Cosmic Energy Orb** | Awakens a persistent plasma orb above the index fingertip. Follows hand movement continuously on either the left or right hand. |
+| **Hand Flick / Receiver Pinch** | **Inter-Hand Orb Throw & Transfer** | Launches the cosmic orb across the screen as a homing plasma comet in a parabolic arc, complete with a stardust trail and dynamic locking onto the opposite index fingertip. |
+| **Dual Fists Close Together** | **Supermassive Giga Blackhole** | Pure procedural vector physics: upper and lower relativistic Einstein gravitational lensing arcs, three differential counter-rotating accretion vortex rings, undulating solar prominence plasma loops, and high-voltage lightning arcs bridging both fists. |
+| **Dual Palms Close Together** | **Multiverse Giga Shield Array** | Merges both shields into an expansive concentric mandala barricade. |
 
 ---
 
-## ⚙️ Arsitektur & Optimasi Performa
+## ⚙️ Architecture & Performance Optimizations
 
-AetherCast dirancang agar tetap ringan dan responsif pada komputer dengan webcam standar:
+AetherCast is engineered for high framerates on consumer hardware with standard webcams:
 
-1. **Decoupled Offscreen Tracking (480x270)**:
-   Proses inferensi AI MediaPipe dijalankan pada canvas offscreen beresolusi rendah (480x270). Beban inferensi WASM berkurang menjadi hanya ~7ms per frame, sehingga thread utama rendering tetap bebas menjalankan animasi pada 60–144+ FPS.
-2. **Batched Particle Draw Calls**:
-   500+ partikel dan percikan cahaya digabungkan ke dalam 4–5 batch path GPU, bukan ratusan pemanggilan `beginPath()` / `stroke()` individual.
+1. **Decoupled Offscreen Tracking Loop (480x270)**:
+   MediaPipe AI inference executes on a downsampled 480x270 offscreen buffer. WASM inference latency drops to ~7ms per frame, leaving the main rendering thread completely unblocked to deliver 60–144+ FPS.
+2. **Batched GPU Draw Calls**:
+   Over 500 active particles and spark emitters are aggregated into 4–5 batched canvas paths per frame rather than hundreds of individual `beginPath()` and `stroke()` invocations.
 3. **Delta-Time Physics Normalization**:
-   Kecepatan rotasi cincin akresi, gravitasi partikel, dan proyektil dinormalisasi berbasis delta waktu (`dt / 16.67ms`), menghasilkan tempo animasi identik di monitor 60Hz, 120Hz, maupun 144Hz.
+   All velocities—accretion ring rotation speeds, gravitational particle suction, and projectile trajectories—are normalized against frame delta time (`dt / 16.67ms`), ensuring identical physics behavior across 60Hz, 120Hz, and 144Hz monitors.
 4. **Single-Authority Orb State Machine**:
-   Mekanisme transfer bola antar tangan diatur oleh satu status sentral (`activeCosmicHandId`) untuk mencegah bug duplikasi bola kosmik saat transisi cepat kedua tangan.
+   Inter-hand projectile transfer is coordinated through a single authoritative state (`activeCosmicHandId`), eliminating duplicate or orphaned orbs during rapid multi-hand gestures.
 5. **100% Procedural Vector Rendering**:
-   Efek Giga Blackhole dibuat murni menggunakan matematika geometri Canvas 2D (busur elips, gradien radial, dan garis putus-putus diferensial), menghilangkan glitch distorsi kotak dan kliping tekstur raster.
+   The Giga Blackhole is drawn using pure Canvas 2D vector mathematics (elliptical arcs, radial shadow gradients, and differential line dash intervals). This avoids rectangular texture clipping and maintains razor-sharp visuals at all display resolutions.
 
 ---
 
-## 🎛️ Panel Kontrol & Kustomisasi
+## 🎛️ Control Panel & Customization
 
-Aplikasi menyediakan overlay kontrol transparan bergaya glassmorphism:
+The interface includes a compact glassmorphic control overlay:
 
-- **Neon Color Palettes**: Pilihan 5 palet warna neon (`Cyber Cyan`, `Solar Gold`, `Arcane Purple`, `Emerald Spark`, `Prismatic Rainbow`). Palet akan diacak otomatis setiap aplikasi dibuka.
-- **Particle Intensity Slider**: Mengatur jumlah partikel aktif dari 100 hingga 1500 partikel simultan.
-- **Webcam Darkness Slider**: Mengatur tingkat kegelapan latar webcam (0% transparan hingga 100% hitam pekat) untuk menonjolkan visual partikel.
-- **Glow & Spark Size**: Menyesuaikan radius bloom dan ukuran percikan cahaya.
-- **Energy Skeleton Toggle**: Menampilkan garis tulang dan sendi tangan bersinar neon.
-- **Webcam Off Mode**: Mematikan kamera webcam dan beralih ke latar angkasa gelap.
-- **Mouse / Touch Fallback**: Memungkinkan kontrol gravitasi partikel dan efek menggunakan kursor mouse atau layar sentuh ketika kamera tidak aktif.
+- **Neon Color Palettes**: Choose from 5 preset themes (`Cyber Cyan`, `Solar Gold`, `Arcane Purple`, `Emerald Spark`, and `Prismatic Rainbow`). The palette is randomized on startup.
+- **Particle Density Slider**: Adjusts active particle count between 100 and 1,500 particles.
+- **Webcam Darkness Slider**: Regulates webcam video opacity (from 0% transparent to 100% black) to highlight particle contrast.
+- **Glow & Spark Radius**: Adjusts the scale of particle bloom and spark bursts.
+- **Energy Skeleton Toggle**: Renders real-time neon bone vectors connecting all 21 hand landmarks.
+- **Webcam Toggle**: Switches off the webcam feed and replaces it with a clean cosmic space background.
+- **Mouse & Touch Fallback**: Provides particle attraction and gravitational control via cursor or touchscreen when no webcam is active.
 
 ---
 
-## 🚀 Panduan Instalasi & Penggunaan
+## 🚀 Quick Start
 
-### Prasyarat
-- [Node.js](https://nodejs.org/) (versi 16 atau lebih baru)
-- Webcam fungsional
+### Prerequisites
+- [Node.js](https://nodejs.org/) (version 16 or later)
+- A working webcam
 
-### Opsi 1: Menjalankan Aplikasi Desktop (Electron)
+### Option 1: Desktop Application (Electron)
 ```bash
-# 1. Clone repositori
+# 1. Clone the repository
 git clone https://github.com/UnnamedPeople-Chin/AetherCast.git
 cd AetherCast
 
-# 2. Pasang dependensi
+# 2. Install dependencies
 npm install
 
-# 3. Jalankan aplikasi
+# 3. Launch the desktop app
 npm start
 ```
 
-### Opsi 2: Menjalankan via Browser (HTTP Server)
-Karena MediaPipe membutuhkan konteks aman (secure context), jalankan file melalui server lokal:
+### Option 2: Browser (Local HTTP Server)
+Because MediaPipe requires a secure context for camera access, serve the project files via local HTTP:
 ```bash
-# Menggunakan Python
+# Using Python
 python -m http.server 8080
 
-# Atau menggunakan npx serve
+# Or using npx serve
 npx serve .
 ```
-Buka browser dan akses alamat `http://localhost:8080`.
+Then open `http://localhost:8080` in Chrome, Edge, or Brave.
 
 ---
 
-## 📁 Struktur Direktori
+## 📁 Repository Structure
 
 ```text
 AetherCast/
 ├── Assets/
-│   ├── logo.svg              # Logo vektor Cyberpunk AetherCast
-│   ├── banner_preview.svg    # Visual showcase banner resolusi tinggi
-│   └── shield_mandala.png    # Tekstur mandala perisai kuno
+│   ├── logo.svg              # Vector logo (Cyberpunk neon mark)
+│   ├── banner_preview.svg    # High-resolution showcase banner
+│   └── shield_mandala.png    # Ancient mandala shield texture
 ├── app.js                    # Core engine: tracking, physics, canvas rendering, gesture logic
-├── index.html                # Struktur DOM, canvas overlay, dan panel kontrol UI
-├── style.css                 # Styling glassmorphism, tipografi, dan tata letak responsif
-├── main.js                   # Konfigurasi jendela Electron desktop
-├── package.json              # Konfigurasi dependensi dan skrip Electron
-└── README.md                 # Dokumentasi proyek
+├── index.html                # DOM structure, canvas overlay, and glassmorphic UI
+├── style.css                 # Glassmorphic styling, typography, and responsive layout
+├── main.js                   # Electron desktop window lifecycle
+├── package.json              # Project dependencies and start scripts
+└── README.md                 # Project documentation
 ```
 
 ---
 
-## 📄 Lisensi
+## 📄 License
 
-Proyek ini dirilis di bawah lisensi [MIT](LICENSE). Dibuat dengan dedikasi oleh **UnnamedPeople-Chin**.
+This project is licensed under the [MIT License](LICENSE). Developed with precision by **UnnamedPeople-Chin**.
