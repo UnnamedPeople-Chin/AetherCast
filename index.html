@@ -12,6 +12,9 @@
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
+    <!-- Preload MediaPipe Tasks-Vision GPU HandLandmarker (gesturewatcher architecture) -->
+    <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/vision_bundle.mjs" crossorigin="anonymous">
+
     <!-- Fix Electron UMD Node Module Interference for MediaPipe CDN -->
     <script>
         if (typeof module === 'object') {
@@ -20,9 +23,8 @@
         }
     </script>
 
-    <!-- MediaPipe Scripts CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <!-- Fallback MediaPipe Hands CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous" defer></script>
 
     <!-- Restore Electron Module Object -->
     <script>

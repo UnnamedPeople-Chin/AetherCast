@@ -83,6 +83,7 @@ let enableMouseControl = false;
 let camViewMode = 'fullscreen';
 let isCameraActive = false;
 let isMirrored = true;
+let handLandmarker = null;
 let handsDetector = null;
 let mediaPipeInitPromise = null;
 let isMediaPipeReady = false;
@@ -1236,9 +1237,154 @@ function drawMiniMonitor(ctx) {
 }
 
 // -------------------------------------------------------------
-// Robust Multi-Hand Persistent Tracker (Strict 1-to-1 Pair Lock & Zero-GC Sync)
+// One-Euro Filter (1€ Filter — Casiez et al., gesturewatcher architecture)
+// Zero-jitter when hand is still, zero-latency 1:1 tracking when moving fast
 // -------------------------------------------------------------
-function updateHandTrackingInterpolation() {
+class LowPassFilter {
+    constructor() {
+        this.y = 0;
+        this.initialized = false;
+    }
+    filter(value, alpha) {
+        if (!this.initialized) {
+            this.y = value;
+            this.initialized = true;
+            return value;
+        }
+        this.y = alpha * value + (1 - alpha) * this.y;
+        return this.y;
+    }
+}
+
+class OneEuroFilter {
+    constructor(minCutoff = 1.5, beta = 24.0, dCutoff = 1.0) {
+        this.minCutoff = minCutoff;
+        this.beta = beta;
+        this.dCutoff = dCutoff;
+        this.xFilter = new LowPassFilter();
+        this.dxFilter = new LowPassFilter();
+        this.lastTime = null;
+        this.lastRaw = null;
+    }
+    alpha(cutoff, dt) {
+        const tau = 1 / (2 * Math.PI * cutoff);
+        return 1 / (1 + tau / dt);
+    }
+    filter(value, timestampMs) {
+        if (this.lastTime === null || this.lastRaw === null) {
+            this.lastTime = timestampMs;
+            this.lastRaw = value;
+            this.xFilter.filter(value, 1);
+            this.dxFilter.filter(0, 1);
+            return value;
+        }
+        const dt = Math.max((timestampMs - this.lastTime) / 1000, 1e-3);
+        if (dt <= 1e-3 && value === this.lastRaw) {
+            return this.xFilter.y;
+        }
+        this.lastTime = timestampMs;
+        const dx = (value - this.lastRaw) / dt;
+        this.lastRaw = value;
+        const edx = this.dxFilter.filter(dx, this.alpha(this.dCutoff, dt));
+        const cutoff = this.minCutoff + this.beta * Math.abs(edx);
+        return this.xFilter.filter(value, this.alpha(cutoff, dt));
+    }
+}
+
+class OneEuroLandmarkFilter {
+    constructor(minCutoff = 1.5, beta = 24.0, dCutoff = 1.0) {
+        this.fx = new OneEuroFilter(minCutoff, beta, dCutoff);
+        this.fy = new OneEuroFilter(minCutoff, beta, dCutoff);
+    }
+    filterInPlace(rawLm, timestampMs, outLm) {
+        outLm.x = this.fx.filter(rawLm.x, timestampMs);
+        outLm.y = this.fy.filter(rawLm.y, timestampMs);
+        outLm.z = rawLm.z || 0;
+    }
+}
+
+// Hysteresis Thresholds (Schmitt Trigger — prevents gesture boundary flicker)
+const PINCH_ON = 0.23;
+const PINCH_OFF = 0.33;
+const SHIELD_ON = 0.35;
+const SHIELD_OFF = 0.46;
+const FIST_EXT_ENTER = 1.05;
+const FIST_EXT_EXIT = 1.15;
+
+function applyFilteredLandmarksAndClassify(hand, rawLandmarks, timestampMs) {
+    if (!rawLandmarks || rawLandmarks.length < 21) return;
+
+    for (let k = 0; k < 21; k++) {
+        hand.lmFilters[k].filterInPlace(rawLandmarks[k], timestampMs, hand.filteredLandmarks[k]);
+    }
+    hand.rawLandmarks = hand.filteredLandmarks;
+
+    const flm = hand.filteredLandmarks;
+    const mirrorX = (x) => (isMirrored ? 1 - x : x);
+
+    hand.wrist.x = mirrorX(flm[0].x);
+    hand.wrist.y = flm[0].y;
+    hand.palm.x = mirrorX(flm[9].x);
+    hand.palm.y = flm[9].y;
+
+    const tipIndices = [4, 8, 12, 16, 20];
+    for (let t = 0; t < 5; t++) {
+        const lm = flm[tipIndices[t]];
+        hand.fingertips[t].x = mirrorX(lm.x);
+        hand.fingertips[t].y = lm.y;
+        hand.fingertips[t].z = lm.z;
+    }
+
+    const wrist = flm[0];
+    const thumbTip = flm[4];
+    const indexPip = flm[6];
+    const indexTip = flm[8];
+    const middleMcp = flm[9];
+    const middlePip = flm[10];
+    const middleTip = flm[12];
+    const ringPip = flm[14];
+    const ringTip = flm[16];
+    const pinkyPip = flm[18];
+    const pinkyTip = flm[20];
+
+    // 1. Fist Classification with Hysteresis
+    const extMult = hand.isFist ? FIST_EXT_EXIT : FIST_EXT_ENTER;
+    const indexExt = dist(indexTip, wrist) > dist(indexPip, wrist) * extMult;
+    const middleExt = dist(middleTip, wrist) > dist(middlePip, wrist) * extMult;
+    const ringExt = dist(ringTip, wrist) > dist(ringPip, wrist) * extMult;
+    const pinkyExt = dist(pinkyTip, wrist) > dist(pinkyPip, wrist) * extMult;
+
+    const extendedCount = (indexExt ? 1 : 0) + (middleExt ? 1 : 0) + (ringExt ? 1 : 0) + (pinkyExt ? 1 : 0);
+    const isFist = extendedCount === 0;
+    const isOpenPalm = extendedCount >= 2 && !isFist;
+
+    // Scale-Invariant Palm Metric
+    const handScale = Math.max(0.08, dist(wrist, middleMcp));
+
+    // 2. Doctor Strange Shield Gesture with Hysteresis
+    const fingerTouchDist = dist(indexTip, middleTip);
+    const normalizedTouchDist = fingerTouchDist / handScale;
+    const shieldThresh = hand.isShieldTouch ? SHIELD_OFF : SHIELD_ON;
+    const shieldRawMax = hand.isShieldTouch ? 0.08 : 0.06;
+    const isShieldTouch = (normalizedTouchDist < shieldThresh || fingerTouchDist < shieldRawMax) && indexExt && middleExt && !isFist;
+
+    // 3. Pinch Tap Gesture with Hysteresis
+    const pinchDist = dist(thumbTip, indexTip);
+    const normalizedPinchDist = pinchDist / handScale;
+    const pinchThresh = hand.isPinchTap ? PINCH_OFF : PINCH_ON;
+    const pinchRawMax = hand.isPinchTap ? 0.062 : 0.046;
+    const isPinchTap = normalizedPinchDist < pinchThresh && pinchDist < pinchRawMax && !isFist && !isShieldTouch;
+
+    hand.isFist = isFist;
+    hand.isOpenPalm = isOpenPalm;
+    hand.isShieldTouch = isShieldTouch;
+    hand.isPinchTap = isPinchTap;
+}
+
+// -------------------------------------------------------------
+// Robust Multi-Hand Persistent Tracker (Strict 1-to-1 Pair Lock + 1€ Filter)
+// -------------------------------------------------------------
+function updateHandTrackingInterpolation(now = performance.now()) {
     const activeTargets = targetHandsList;
     const maxGhostFrames = 3;
 
@@ -1276,7 +1422,7 @@ function updateHandTrackingInterpolation() {
         }
     }
 
-    // 2. Update Matched Hands with Direct 1:1 High-Accuracy Tracking (Zero Object Allocations)
+    // 2. Update Matched Hands with One-Euro Filtering & Hysteresis (Zero Object Allocations)
     for (let idx = 0; idx < trackedHands.length; idx++) {
         const currentHand = trackedHands[idx];
         const targetIdx = pairMap.get(idx);
@@ -1286,23 +1432,19 @@ function updateHandTrackingInterpolation() {
             currentHand.lostFrames = 0;
             currentHand.trackedFrames = (currentHand.trackedFrames || 0) + 1;
 
-            // In-place coordinate updates (Zero GC pressure at 144 FPS)
-            currentHand.palm.x = target.palm.x;
-            currentHand.palm.y = target.palm.y;
-            currentHand.wrist.x = target.wrist.x;
-            currentHand.wrist.y = target.wrist.y;
-
-            if (target.fingertips) {
-                currentHand.fingertips = target.fingertips;
+            if (target.rawLandmarks && currentHand.lmFilters) {
+                applyFilteredLandmarksAndClassify(currentHand, target.rawLandmarks, now);
+            } else {
+                currentHand.palm.x = target.palm.x;
+                currentHand.palm.y = target.palm.y;
+                currentHand.wrist.x = target.wrist.x;
+                currentHand.wrist.y = target.wrist.y;
+                if (target.fingertips) currentHand.fingertips = target.fingertips;
+                currentHand.isFist = target.isFist;
+                currentHand.isShieldTouch = target.isShieldTouch;
+                currentHand.isOpenPalm = target.isOpenPalm;
+                currentHand.isPinchTap = target.isPinchTap;
             }
-            if (target.rawLandmarks) {
-                currentHand.rawLandmarks = target.rawLandmarks;
-            }
-
-            currentHand.isFist = target.isFist;
-            currentHand.isShieldTouch = target.isShieldTouch;
-            currentHand.isOpenPalm = target.isOpenPalm;
-            currentHand.isPinchTap = target.isPinchTap;
         } else {
             currentHand.lostFrames = (currentHand.lostFrames || 0) + 1;
             currentHand.trackedFrames = 0;
@@ -1328,25 +1470,41 @@ function updateHandTrackingInterpolation() {
             const usedId0 = trackedHands.length > 0 && trackedHands[0].id === 0;
             const newId = usedId0 ? 1 : 0;
 
-            trackedHands.push({
+            const newHand = {
                 id: newId,
                 lostFrames: 0,
                 trackedFrames: 1,
                 palm: { x: target.palm.x, y: target.palm.y },
                 wrist: { x: target.wrist.x, y: target.wrist.y },
-                fingertips: target.fingertips,
+                fingertips: [
+                    { x: 0, y: 0, z: 0 },
+                    { x: 0, y: 0, z: 0 },
+                    { x: 0, y: 0, z: 0 },
+                    { x: 0, y: 0, z: 0 },
+                    { x: 0, y: 0, z: 0 }
+                ],
+                lmFilters: Array.from({ length: 21 }, () => new OneEuroLandmarkFilter(1.5, 24.0, 1.0)),
+                filteredLandmarks: Array.from({ length: 21 }, () => ({ x: 0, y: 0, z: 0 })),
                 rawLandmarks: target.rawLandmarks,
-                isFist: target.isFist,
-                isOpenPalm: target.isOpenPalm,
-                isShieldTouch: target.isShieldTouch,
-                isPinchTap: target.isPinchTap
-            });
+                isFist: !!target.isFist,
+                isOpenPalm: target.isOpenPalm !== undefined ? target.isOpenPalm : true,
+                isShieldTouch: !!target.isShieldTouch,
+                isPinchTap: !!target.isPinchTap
+            };
+
+            if (target.rawLandmarks) {
+                applyFilteredLandmarksAndClassify(newHand, target.rawLandmarks, now);
+            } else if (target.fingertips) {
+                newHand.fingertips = target.fingertips;
+            }
+
+            trackedHands.push(newHand);
         }
     }
 }
 
 // -------------------------------------------------------------
-// Independent Render Loop
+// Unified Render & GPU HandLandmarker Loop (gesturewatcher architecture)
 // -------------------------------------------------------------
 function render() {
     const now = performance.now();
@@ -1354,6 +1512,23 @@ function render() {
     lastFrameTime = now;
 
     dtScale = dtSeconds * 60;
+
+    // 0. Synchronous Zero-Copy GPU Hand Detection on New Video Frames (gesturewatcher pipeline)
+    if (isCameraActive && handLandmarker && videoElement.readyState >= 2 && videoElement.videoWidth > 0 && !videoElement.paused) {
+        const currentVideoTime = videoElement.currentTime;
+        if (currentVideoTime !== lastProcessedVideoTime) {
+            lastProcessedVideoTime = currentVideoTime;
+            try {
+                const gpuResult = handLandmarker.detectForVideo(videoElement, now);
+                onHandResults({
+                    multiHandLandmarks: gpuResult.landmarks,
+                    multiHandedness: gpuResult.handedness ? gpuResult.handedness.map(h => h[0]) : []
+                });
+            } catch (err) {
+                // Single bad frame ignored gracefully
+            }
+        }
+    }
 
     // 1. Render Background (Hardware-Composited Video in Fullscreen, Dark Space Trail otherwise)
     if (isCameraActive && videoElement.readyState >= 2 && camViewMode === 'fullscreen') {
@@ -1372,7 +1547,7 @@ function render() {
         screenFlashAlpha *= Math.pow(0.86, dtScale);
     }
 
-    updateHandTrackingInterpolation();
+    updateHandTrackingInterpolation(now);
 
     maintainParticles();
 
@@ -1812,41 +1987,47 @@ function onHandResults(results) {
 }
 
 // -------------------------------------------------------------
-// DECOUPLED ASYNC MEDIAPIPE DETECTION LOOP (Frame-Deduplicated & Watchdog Protected)
 // -------------------------------------------------------------
+// MEDIAPIPE GPU HANDLANDMARKER ENGINE (@mediapipe/tasks-vision + Fallback)
+// -------------------------------------------------------------
+const VISION_BUNDLE_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/vision_bundle.mjs';
+const VISION_WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm';
+const HAND_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task';
+
 let isProcessingTracking = false;
 let lastTrackingStartTime = 0;
 let trackingTimerId = null;
 let lastProcessedVideoTime = -1;
 
+// Legacy fallback loop (only used if GPU HandLandmarker falls back to CPU Hands)
 async function trackingLoop() {
     if (trackingTimerId) {
         clearTimeout(trackingTimerId);
         trackingTimerId = null;
     }
 
+    // When GPU HandLandmarker is active, detection runs directly inside requestAnimationFrame(render)
+    if (handLandmarker) return;
+
     if (isCameraActive && videoElement.readyState >= 2 && handsDetector && videoElement.videoWidth > 0 && !videoElement.paused) {
-        // Ensure MediaPipe WASM & TFLite models are fully initialized before sending frames
         if (!isMediaPipeReady && mediaPipeInitPromise) {
             try {
                 await mediaPipeInitPromise;
             } catch (e) {}
         }
+        if (handLandmarker) return;
 
-        // Safety Watchdog: Only force unblock if WASM genuinely hung for > 5000ms
         if (isProcessingTracking && performance.now() - lastTrackingStartTime > 5000) {
             console.warn("MediaPipe send watchdog triggered, resetting lock.");
             isProcessingTracking = false;
         }
 
-        // Only run WASM inference when the webcam has produced a genuinely new video frame!
         const currentVideoTime = videoElement.currentTime;
         if (!isProcessingTracking && currentVideoTime !== lastProcessedVideoTime) {
             isProcessingTracking = true;
             lastProcessedVideoTime = currentVideoTime;
             lastTrackingStartTime = performance.now();
             try {
-                // Use lightweight 320px width (exceeds MediaPipe's 256x256 internal lite tensor while cutting pixel transfer by 56%)
                 const targetH = Math.round(320 / ((videoElement.videoWidth / videoElement.videoHeight) || (16 / 9)));
                 if (offCanvas.width !== 320 || offCanvas.height !== targetH) {
                     offCanvas.width = 320;
@@ -1862,8 +2043,7 @@ async function trackingLoop() {
             }
         }
     }
-    if (isCameraActive) {
-        // Pace detection at ~30Hz (28ms) to leave >80% of main thread free for 60 FPS rendering
+    if (isCameraActive && !handLandmarker) {
         trackingTimerId = setTimeout(trackingLoop, 28);
     }
 }
@@ -1896,13 +2076,13 @@ setInterval(() => {
     }
 }, 1000);
 
-// Initialize & Pre-Warm MediaPipe Hands WASM at Startup
-function initMediaPipe() {
+// Fallback initializer for legacy @mediapipe/hands
+function initLegacyHandsFallback() {
     if (typeof Hands === 'undefined') {
-        setTimeout(initMediaPipe, 200);
-        return;
+        setTimeout(initLegacyHandsFallback, 200);
+        return Promise.resolve();
     }
-    if (handsDetector) return;
+    if (handsDetector) return Promise.resolve();
     try {
         handsDetector = new Hands({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
@@ -1917,33 +2097,62 @@ function initMediaPipe() {
 
         handsDetector.onResults(onHandResults);
 
-        if (!isCameraActive) {
-            statusBadge.className = 'badge info';
-            statusText.textContent = 'Memuat AI...';
-        }
-
-        // Pre-warm WASM & TFLite models immediately so first camera activation is instant
         if (typeof handsDetector.initialize === 'function') {
-            mediaPipeInitPromise = handsDetector.initialize().then(() => {
+            return handsDetector.initialize().then(() => {
                 isMediaPipeReady = true;
                 if (!isCameraActive) {
                     statusBadge.className = 'badge info';
                     statusText.textContent = 'Webcam Siap';
                 }
-            }).catch((err) => {
-                console.warn("MediaPipe pre-warm notice:", err);
+            }).catch(() => {
                 isMediaPipeReady = true;
             });
-        } else {
+        }
+        isMediaPipeReady = true;
+        if (!isCameraActive) {
+            statusBadge.className = 'badge info';
+            statusText.textContent = 'Webcam Siap';
+        }
+    } catch (err) {
+        console.error("Failed to init fallback MediaPipe Hands:", err);
+    }
+    return Promise.resolve();
+}
+
+// Initialize & Pre-Warm @mediapipe/tasks-vision GPU HandLandmarker at Startup (gesturewatcher architecture)
+function initMediaPipe() {
+    if (handLandmarker || handsDetector || mediaPipeInitPromise) return;
+
+    if (!isCameraActive) {
+        statusBadge.className = 'badge info';
+        statusText.textContent = 'Memuat GPU AI...';
+    }
+
+    mediaPipeInitPromise = (async () => {
+        try {
+            const { FilesetResolver, HandLandmarker } = await import(VISION_BUNDLE_URL);
+            const vision = await FilesetResolver.forVisionTasks(VISION_WASM_URL);
+            handLandmarker = await HandLandmarker.createFromOptions(vision, {
+                baseOptions: {
+                    modelAssetPath: HAND_MODEL_URL,
+                    delegate: 'GPU'
+                },
+                runningMode: 'VIDEO',
+                numHands: 2,
+                minHandDetectionConfidence: 0.5,
+                minHandPresenceConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
             isMediaPipeReady = true;
             if (!isCameraActive) {
                 statusBadge.className = 'badge info';
-                statusText.textContent = 'Webcam Siap';
+                statusText.textContent = 'Webcam Siap (GPU)';
             }
+        } catch (gpuErr) {
+            console.warn("GPU HandLandmarker unavailable, falling back to legacy Hands:", gpuErr);
+            await initLegacyHandsFallback();
         }
-    } catch (err) {
-        console.error("Failed to init MediaPipe Hands:", err);
-    }
+    })();
 }
 
 // WebCam Initialization with Stream Recovery
@@ -1972,12 +2181,12 @@ async function toggleCamera() {
         statusBadge.className = 'badge info';
         statusText.textContent = 'Webcam Nonaktif';
     } else {
-        if (!handsDetector) initMediaPipe();
+        initMediaPipe();
         statusBadge.className = 'badge warning';
         statusText.textContent = 'Memulai Kamera...';
 
         try {
-            // Request HD 1280x720 (up to 1080p) — rendered directly via GPU <video> layer while MediaPipe uses 320x180 offCanvas
+            // Request HD 1280x720 (up to 1080p) — rendered directly via GPU <video> layer
             webcamStream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     width: { ideal: 1280, max: 1920 },
@@ -1992,6 +2201,11 @@ async function toggleCamera() {
             videoElement.playsInline = true;
             videoElement.srcObject = webcamStream;
             await videoElement.play();
+
+            if (!isMediaPipeReady && mediaPipeInitPromise) {
+                statusText.textContent = 'Menyiapkan GPU AI...';
+                await mediaPipeInitPromise;
+            }
 
             const track = webcamStream.getVideoTracks()[0];
             if (track) {
@@ -2014,7 +2228,9 @@ async function toggleCamera() {
             statusBadge.className = 'badge warning';
             statusText.textContent = 'Mencari Tangan...';
 
-            trackingLoop();
+            if (!handLandmarker) {
+                trackingLoop();
+            }
         } catch (err) {
             console.error('Camera access denied or failed:', err);
             alert('Tidak dapat mengakses webcam. Pastikan izin kamera telah diberikan!');
