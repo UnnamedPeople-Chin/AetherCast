@@ -8,11 +8,11 @@ const statusBadge = document.getElementById('status-badge');
 const statusText = document.getElementById('status-text');
 const fpsCounter = document.getElementById('fps-counter');
 
-// Offscreen Canvas for Ultra-Fast MediaPipe WASM Processing (Zero-Lag 480x270, GPU-Accelerated)
+// Offscreen Canvas for Ultra-Fast MediaPipe WASM Processing (Zero-Lag 320x180, GPU-Accelerated)
 const offCanvas = document.createElement('canvas');
-offCanvas.width = 480;
-offCanvas.height = 270;
-const offCtx = offCanvas.getContext('2d');
+offCanvas.width = 320;
+offCanvas.height = 180;
+const offCtx = offCanvas.getContext('2d', { alpha: false });
 
 // Preload & Offscreen Cache for Authentic Doctor Strange Mandala Asset
 const shieldImg = new Image();
@@ -84,7 +84,22 @@ let camViewMode = 'fullscreen';
 let isCameraActive = false;
 let isMirrored = true;
 let handsDetector = null;
+let mediaPipeInitPromise = null;
+let isMediaPipeReady = false;
 let webcamStream = null;
+
+// Hardware Video Layer Style Synchronizer (Eliminates Main-Thread Fullscreen Video Blitting)
+function syncVideoLayerStyle() {
+    if (!videoElement) return;
+    if (!isCameraActive) {
+        videoElement.classList.remove('active', 'pip-hidden');
+        return;
+    }
+    videoElement.classList.add('active');
+    videoElement.classList.toggle('pip-hidden', camViewMode === 'pip');
+    videoElement.style.transform = isMirrored ? 'scaleX(-1)' : 'scaleX(1)';
+    videoElement.style.opacity = String(Math.max(0, Math.min(1, 1 - (camTintLevel / 10))));
+}
 
 // Performance & Delta Time Tracking
 let frameCount = 0;
@@ -1340,19 +1355,9 @@ function render() {
 
     dtScale = dtSeconds * 60;
 
-    // 1. Render Background Video & Tint
+    // 1. Render Background (Hardware-Composited Video in Fullscreen, Dark Space Trail otherwise)
     if (isCameraActive && videoElement.readyState >= 2 && camViewMode === 'fullscreen') {
-        ctx.save();
-        if (isMirrored) {
-            ctx.translate(canvas.width, 0);
-            ctx.scale(-1, 1);
-        }
-        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-        ctx.restore();
-
-        const tintAlpha = camTintLevel / 10;
-        ctx.fillStyle = `rgba(7, 9, 19, ${tintAlpha})`;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
     } else {
         ctx.fillStyle = 'rgba(7, 9, 19, 0.35)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1637,7 +1642,8 @@ function render() {
             drawBlackhole(ctx, palmX, palmY, pState.fistCharge, pState.birthProgress);
 
             if (pState.birthProgress >= 0.8) {
-                particles.forEach(p => {
+                for (let i = 0; i < particles.length; i++) {
+                    const p = particles[i];
                     const dx = palmX - p.x;
                     const dy = palmY - p.y;
                     const distSq = dx * dx + dy * dy;
@@ -1647,7 +1653,7 @@ function render() {
                         p.vx += (dx / d) * pull;
                         p.vy += (dy / d) * pull;
                     }
-                });
+                }
             }
 
             if (pState.fistCharge >= 1.0) {
@@ -1692,11 +1698,14 @@ function render() {
 
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    shockwaves = shockwaves.filter(sw => {
-        const alive = sw.update();
-        if (alive) sw.draw(ctx);
-        return alive;
-    });
+    for (let i = shockwaves.length - 1; i >= 0; i--) {
+        const sw = shockwaves[i];
+        if (sw.update()) {
+            sw.draw(ctx);
+        } else {
+            shockwaves.splice(i, 1);
+        }
+    }
     ctx.restore();
 
     frameCount++;
@@ -1717,15 +1726,15 @@ function onHandResults(results) {
 
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
         results.multiHandLandmarks.forEach((landmarks, hIdx) => {
-            // 1. MediaPipe Confidence Score Check (filters low-confidence hallucinations)
+            // 1. MediaPipe Confidence Score Check (filters low-confidence noise)
             if (results.multiHandedness && results.multiHandedness[hIdx]) {
                 const handScore = results.multiHandedness[hIdx].score;
-                if (handScore !== undefined && handScore < 0.65) {
+                if (handScore !== undefined && handScore < 0.55) {
                     return; // Skip low confidence detection
                 }
             }
 
-            // 2. Anatomical Proportion & Face Hallucination Rejection Filter
+            // 2. Minimal Microscopic Artifact Filter (Allows hands close to camera & tilted palms)
             const rawWrist = landmarks[0];
             const rawIndexMcp = landmarks[5];
             const rawMiddleMcp = landmarks[9];
@@ -1734,14 +1743,8 @@ function onHandResults(results) {
             const palmLength = Math.hypot(rawMiddleMcp.x - rawWrist.x, rawMiddleMcp.y - rawWrist.y);
             const palmWidth = Math.hypot(rawIndexMcp.x - rawPinkyMcp.x, rawIndexMcp.y - rawPinkyMcp.y);
 
-            // Filter out non-hand noise / tiny artifacts / camera edge glitches
-            if (palmLength < 0.035 || palmLength > 0.55 || palmWidth < 0.025 || palmWidth > 0.45) {
-                return;
-            }
-
-            // Human palm aspect ratio check (knuckle width to wrist-knuckle length is typically 0.35 - 2.1)
-            const palmRatio = palmWidth / palmLength;
-            if (palmRatio < 0.35 || palmRatio > 2.1) {
+            // Only filter out microscopic edge noise
+            if (palmLength < 0.02 || palmWidth < 0.015) {
                 return;
             }
 
@@ -1797,7 +1800,9 @@ function onHandResults(results) {
                 isPinchTap
             });
         });
+    }
 
+    if (targetHandsList.length > 0) {
         statusBadge.className = 'badge success';
         statusText.textContent = `Tracking (${targetHandsList.length} Tangan)`;
     } else if (isCameraActive) {
@@ -1821,9 +1826,16 @@ async function trackingLoop() {
     }
 
     if (isCameraActive && videoElement.readyState >= 2 && handsDetector && videoElement.videoWidth > 0 && !videoElement.paused) {
-        // Safety Watchdog: If previous send took more than 800ms, force unblock
-        if (isProcessingTracking && performance.now() - lastTrackingStartTime > 800) {
-            console.warn("MediaPipe send timeout detected, resetting lock.");
+        // Ensure MediaPipe WASM & TFLite models are fully initialized before sending frames
+        if (!isMediaPipeReady && mediaPipeInitPromise) {
+            try {
+                await mediaPipeInitPromise;
+            } catch (e) {}
+        }
+
+        // Safety Watchdog: Only force unblock if WASM genuinely hung for > 5000ms
+        if (isProcessingTracking && performance.now() - lastTrackingStartTime > 5000) {
+            console.warn("MediaPipe send watchdog triggered, resetting lock.");
             isProcessingTracking = false;
         }
 
@@ -1834,20 +1846,15 @@ async function trackingLoop() {
             lastProcessedVideoTime = currentVideoTime;
             lastTrackingStartTime = performance.now();
             try {
-                // Keep correct aspect ratio for detection (only resize when changed)
-                const targetH = Math.round(480 / ((videoElement.videoWidth / videoElement.videoHeight) || (16 / 9)));
-                if (offCanvas.width !== 480 || offCanvas.height !== targetH) {
-                    offCanvas.width = 480;
+                // Use lightweight 320px width (exceeds MediaPipe's 256x256 internal lite tensor while cutting pixel transfer by 56%)
+                const targetH = Math.round(320 / ((videoElement.videoWidth / videoElement.videoHeight) || (4 / 3)));
+                if (offCanvas.width !== 320 || offCanvas.height !== targetH) {
+                    offCanvas.width = 320;
                     offCanvas.height = targetH;
                 }
 
                 offCtx.drawImage(videoElement, 0, 0, offCanvas.width, offCanvas.height);
-                
-                // Promise.race to guarantee send never hangs the browser loop
-                await Promise.race([
-                    handsDetector.send({ image: offCanvas }),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error("MediaPipe timeout")), 600))
-                ]);
+                await handsDetector.send({ image: offCanvas });
             } catch (err) {
                 // Drop frame gracefully without stopping the loop
             } finally {
@@ -1856,7 +1863,8 @@ async function trackingLoop() {
         }
     }
     if (isCameraActive) {
-        trackingTimerId = setTimeout(trackingLoop, 12);
+        // Pace detection at ~30Hz (28ms) to leave >80% of main thread free for 60 FPS rendering
+        trackingTimerId = setTimeout(trackingLoop, 28);
     }
 }
 
@@ -1888,12 +1896,13 @@ setInterval(() => {
     }
 }, 1000);
 
-// Initialize MediaPipe Hands safely
+// Initialize & Pre-Warm MediaPipe Hands WASM at Startup
 function initMediaPipe() {
     if (typeof Hands === 'undefined') {
         setTimeout(initMediaPipe, 200);
         return;
     }
+    if (handsDetector) return;
     try {
         handsDetector = new Hands({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
@@ -1902,14 +1911,35 @@ function initMediaPipe() {
         handsDetector.setOptions({
             maxNumHands: 2,
             modelComplexity: 0,
-            minDetectionConfidence: 0.65,
-            minTrackingConfidence: 0.65
+            minDetectionConfidence: 0.55,
+            minTrackingConfidence: 0.55
         });
 
         handsDetector.onResults(onHandResults);
+
         if (!isCameraActive) {
             statusBadge.className = 'badge info';
-            statusText.textContent = 'Webcam Siap';
+            statusText.textContent = 'Memuat AI...';
+        }
+
+        // Pre-warm WASM & TFLite models immediately so first camera activation is instant
+        if (typeof handsDetector.initialize === 'function') {
+            mediaPipeInitPromise = handsDetector.initialize().then(() => {
+                isMediaPipeReady = true;
+                if (!isCameraActive) {
+                    statusBadge.className = 'badge info';
+                    statusText.textContent = 'Webcam Siap';
+                }
+            }).catch((err) => {
+                console.warn("MediaPipe pre-warm notice:", err);
+                isMediaPipeReady = true;
+            });
+        } else {
+            isMediaPipeReady = true;
+            if (!isCameraActive) {
+                statusBadge.className = 'badge info';
+                statusText.textContent = 'Webcam Siap';
+            }
         }
     } catch (err) {
         console.error("Failed to init MediaPipe Hands:", err);
@@ -1930,6 +1960,7 @@ async function toggleCamera() {
         }
         videoElement.srcObject = null;
         isCameraActive = false;
+        syncVideoLayerStyle();
         targetHandsList = [];
         trackedHands = [];
         persistentHandStates.clear();
@@ -1946,11 +1977,12 @@ async function toggleCamera() {
         statusText.textContent = 'Memulai Kamera...';
 
         try {
+            // Request 640x480 @ 30-60 FPS to prevent indoor low-light 15 FPS exposure drop on laptop webcams
             webcamStream = await navigator.mediaDevices.getUserMedia({
                 video: {
-                    width: { ideal: 1280, max: 1920 },
-                    height: { ideal: 720, max: 1080 },
-                    frameRate: { ideal: 30, max: 30 },
+                    width: { ideal: 640, max: 1280 },
+                    height: { ideal: 480, max: 720 },
+                    frameRate: { ideal: 60, min: 30 },
                     facingMode: 'user'
                 },
                 audio: false
@@ -1972,6 +2004,7 @@ async function toggleCamera() {
             }
 
             isCameraActive = true;
+            syncVideoLayerStyle();
             cameraStallCounter = 0;
             lastProcessedVideoTime = -1;
             btnWebcam.querySelector('span').textContent = 'Matikan Webcam';
@@ -2085,6 +2118,7 @@ sliderGlow.addEventListener('input', (e) => {
 sliderCamTint.addEventListener('input', (e) => {
     camTintLevel = parseInt(e.target.value);
     camTintDisplay.textContent = `${camTintLevel * 10}%`;
+    syncVideoLayerStyle();
 });
 
 btnWebcam.addEventListener('click', toggleCamera);
@@ -2099,11 +2133,13 @@ btnViewMode.addEventListener('click', () => {
         btnViewMode.querySelector('span').textContent = 'Mode: Fullscreen';
         btnViewMode.classList.remove('active');
     }
+    syncVideoLayerStyle();
 });
 
 btnMirror.addEventListener('click', () => {
     isMirrored = !isMirrored;
     btnMirror.classList.toggle('active', isMirrored);
+    syncVideoLayerStyle();
 });
 
 btnSkeleton.addEventListener('click', () => {

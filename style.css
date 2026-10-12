@@ -28,7 +28,7 @@ body, html {
     color: var(--text-main);
 }
 
-/* Canvas & Video Styling */
+/* Canvas & Hardware Video Layer Styling */
 #output_canvas {
     position: absolute;
     top: 0;
@@ -36,12 +36,32 @@ body, html {
     width: 100vw;
     height: 100vh;
     z-index: 1;
-    background: #030712;
+    background: transparent;
 }
 
 #input_video {
     display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    object-fit: fill;
+    z-index: 0;
+    pointer-events: none;
     transform: scaleX(-1);
+    will-change: transform, opacity;
+}
+
+#input_video.active {
+    display: block;
+}
+
+#input_video.active.pip-hidden {
+    width: 1px;
+    height: 1px;
+    opacity: 0.01 !important;
+    pointer-events: none;
 }
 
 /* Header Styling */
