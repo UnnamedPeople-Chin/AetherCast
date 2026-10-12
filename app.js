@@ -175,14 +175,57 @@ function lerp(start, end, amt) {
 }
 
 // -------------------------------------------------------------
-// Resize & Setup Canvas
+// Adaptive Render Resolution & Pre-Baked Glow Sprites (Zero Per-Frame Gradient Cost)
 // -------------------------------------------------------------
 function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    const vw = window.innerWidth || 1280;
+    const vh = window.innerHeight || 720;
+    const renderScale = Math.min(1.0, 1366 / vw);
+    canvas.width = Math.round(vw * renderScale);
+    canvas.height = Math.round(vh * renderScale);
 }
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
+
+const glowSpriteAura = document.createElement('canvas');
+glowSpriteAura.width = 256;
+glowSpriteAura.height = 256;
+const glowSpriteAuraCtx = glowSpriteAura.getContext('2d');
+
+const glowSpriteCore = document.createElement('canvas');
+glowSpriteCore.width = 128;
+glowSpriteCore.height = 128;
+const glowSpriteCoreCtx = glowSpriteCore.getContext('2d');
+
+function rebuildGlowSprites() {
+    const colors = PALETTES[activeColorPalette];
+    const mainColor = colors[0];
+    const secColor = colors[1] || colors[0];
+    const accColor = colors[2] || '#ffffff';
+
+    glowSpriteAuraCtx.clearRect(0, 0, 256, 256);
+    const auraG = glowSpriteAuraCtx.createRadialGradient(128, 128, 14, 128, 128, 128);
+    auraG.addColorStop(0, '#ffffff');
+    auraG.addColorStop(0.28, mainColor);
+    auraG.addColorStop(0.65, secColor);
+    auraG.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    glowSpriteAuraCtx.fillStyle = auraG;
+    glowSpriteAuraCtx.beginPath();
+    glowSpriteAuraCtx.arc(128, 128, 128, 0, Math.PI * 2);
+    glowSpriteAuraCtx.fill();
+
+    glowSpriteCoreCtx.clearRect(0, 0, 128, 128);
+    const coreG = glowSpriteCoreCtx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    coreG.addColorStop(0, '#ffffff');
+    coreG.addColorStop(0.45, accColor);
+    coreG.addColorStop(0.85, mainColor);
+    coreG.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    glowSpriteCoreCtx.fillStyle = coreG;
+    glowSpriteCoreCtx.beginPath();
+    glowSpriteCoreCtx.arc(64, 64, 64, 0, Math.PI * 2);
+    glowSpriteCoreCtx.fill();
+}
+rebuildGlowSprites();
 
 // -------------------------------------------------------------
 // Ultra-High Speed Zero-GC Pooled Particle & Volumetric Plasma Engine
@@ -285,9 +328,11 @@ function drawParticlesBatched(ctx) {
             const p = batch[j];
             const alpha = Math.max(0, p.life / p.maxLife);
             const r = p.size * alpha * glowScale;
-            if (r > 0.1) {
+            if (r > 2.2) {
                 ctx.moveTo(p.x + r, p.y);
                 ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+            } else if (r > 0.15) {
+                ctx.rect(p.x - r, p.y - r, r * 2, r * 2);
             }
         }
         ctx.fill();
@@ -401,18 +446,10 @@ function drawCosmicEnergyOrb(ctx, x, y, progress = 1.0) {
 
     ctx.globalCompositeOperation = 'lighter';
 
-    // 1. Multi-Layer Outer Solar Corona Aura
-    const auraGrad = ctx.createRadialGradient(0, 0, radius * 0.3, 0, 0, radius * 2.4);
-    auraGrad.addColorStop(0, '#ffffff');
-    auraGrad.addColorStop(0.35, mainColor);
-    auraGrad.addColorStop(0.7, secColor);
-    auraGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-
-    ctx.beginPath();
-    ctx.arc(0, 0, radius * 2.4, 0, Math.PI * 2);
-    ctx.fillStyle = auraGrad;
+    // 1. Multi-Layer Outer Solar Corona Aura (Pre-baked GPU Sprite Blit)
     ctx.globalAlpha = 0.65 * progress;
-    ctx.fill();
+    const auraR = radius * 2.4;
+    ctx.drawImage(glowSpriteAura, -auraR, -auraR, auraR * 2, auraR * 2);
 
     // 2. Dual Counter-Rotating Gyroscope Rings
     ctx.globalAlpha = 0.9 * progress;
@@ -440,17 +477,9 @@ function drawCosmicEnergyOrb(ctx, x, y, progress = 1.0) {
     ctx.stroke();
     ctx.restore();
 
-    // 3. Volumetric High-Energy Plasma Core
-    const coreGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
-    coreGrad.addColorStop(0, '#ffffff');
-    coreGrad.addColorStop(0.5, accColor);
-    coreGrad.addColorStop(1, mainColor);
-
-    ctx.beginPath();
-    ctx.arc(0, 0, radius, 0, Math.PI * 2);
-    ctx.fillStyle = coreGrad;
+    // 3. Volumetric High-Energy Plasma Core (Pre-baked GPU Sprite Blit)
     ctx.globalAlpha = 0.95 * progress;
-    ctx.fill();
+    ctx.drawImage(glowSpriteCore, -radius, -radius, radius * 2, radius * 2);
 
     // 4. Radiating Anti-Gravity Micro Sparks
     if (Math.random() < 0.7) {
@@ -650,16 +679,10 @@ function drawDoctorStrangeShield(ctx, x, y, baseRadius = 150, progress = 1.0) {
 
     ctx.globalCompositeOperation = 'lighter';
 
-    // 0. Soft Volumetric Back Glow
-    const backGlow = ctx.createRadialGradient(0, 0, radius * 0.2, 0, 0, radius * 1.35);
-    backGlow.addColorStop(0, secColor);
-    backGlow.addColorStop(0.6, mainColor);
-    backGlow.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.beginPath();
-    ctx.arc(0, 0, radius * 1.35, 0, Math.PI * 2);
-    ctx.fillStyle = backGlow;
+    // 0. Soft Volumetric Back Glow (Pre-baked GPU Sprite Blit)
     ctx.globalAlpha = 0.45 * progress;
-    ctx.fill();
+    const glowR = radius * 1.35;
+    ctx.drawImage(glowSpriteAura, -glowR, -glowR, glowR * 2, glowR * 2);
 
     // 1. Draw High-Resolution Shield Mandala Asset if available
     if (isShieldImgLoaded) {
@@ -770,17 +793,10 @@ function drawGigaShield(ctx, x1, y1, x2, y2, midX, midY) {
 
     ctx.globalCompositeOperation = 'lighter';
 
-    // Volumetric Central Shockwave Glow
-    const glow = ctx.createRadialGradient(0, 0, radius * 0.3, 0, 0, radius * 1.4);
-    glow.addColorStop(0, '#ffffff');
-    glow.addColorStop(0.4, secColor);
-    glow.addColorStop(0.8, mainColor);
-    glow.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = glow;
+    // Volumetric Central Shockwave Glow (Pre-baked GPU Sprite Blit)
     ctx.globalAlpha = 0.5;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius * 1.4, 0, Math.PI * 2);
-    ctx.fill();
+    const gigaGlowR = radius * 1.4;
+    ctx.drawImage(glowSpriteAura, -gigaGlowR, -gigaGlowR, gigaGlowR * 2, gigaGlowR * 2);
 
     // High-Resolution Shield Texture Array
     if (isShieldImgLoaded) {
@@ -861,15 +877,9 @@ function drawBlackhole(ctx, x, y, chargeRatio = 0, birthProgress = 1.0) {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
 
-    const outerGlow = ctx.createRadialGradient(0, 0, currentRadius * 0.8, 0, 0, currentRadius * 2.5);
-    outerGlow.addColorStop(0, mainColor);
-    outerGlow.addColorStop(0.5, secColor);
-    outerGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.beginPath();
-    ctx.arc(0, 0, currentRadius * 2.5, 0, Math.PI * 2);
-    ctx.fillStyle = outerGlow;
     ctx.globalAlpha = 0.55 * birthProgress;
-    ctx.fill();
+    const bhGlowR = currentRadius * 2.5;
+    ctx.drawImage(glowSpriteAura, -bhGlowR, -bhGlowR, bhGlowR * 2, bhGlowR * 2);
 
     // 2. Gravitational Lensing Back Accretion Arc (Top & Bottom Bending Arms)
     ctx.strokeStyle = mainColor;
@@ -900,13 +910,6 @@ function drawBlackhole(ctx, x, y, chargeRatio = 0, birthProgress = 1.0) {
     ctx.beginPath();
     ctx.arc(0, 0, currentRadius, 0, Math.PI * 2);
     ctx.fillStyle = '#000000';
-    ctx.fill();
-
-    // Deep Shadow Radial Gradient Falloff
-    const shadowGrad = ctx.createRadialGradient(0, 0, currentRadius * 0.7, 0, 0, currentRadius);
-    shadowGrad.addColorStop(0, '#000000');
-    shadowGrad.addColorStop(1, 'rgba(0,0,0,0.85)');
-    ctx.fillStyle = shadowGrad;
     ctx.fill();
     ctx.restore();
 
@@ -1002,18 +1005,11 @@ function drawGigaBlackhole(ctx, x1, y1, x2, y2, midX, midY, chargeRatio = 0, bir
     ctx.translate(midX + shakeX, midY + shakeY);
     blackholeRotation += (0.045 + chargeRatio * 0.065) * dtScale;
 
-    // 3. Volumetric Gravitational Lensing Halo (Massive Multi-Stop Gradient)
+    // 3. Volumetric Gravitational Lensing Halo (Pre-baked GPU Sprite Blit)
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    const outerLensing = ctx.createRadialGradient(0, 0, radius * 0.7, 0, 0, radius * 3.2);
-    outerLensing.addColorStop(0, mainColor);
-    outerLensing.addColorStop(0.3, secColor);
-    outerLensing.addColorStop(0.65, 'rgba(255, 255, 255, 0.08)');
-    outerLensing.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = outerLensing;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius * 3.2, 0, Math.PI * 2);
-    ctx.fill();
+    const lensR = radius * 3.2;
+    ctx.drawImage(glowSpriteAura, -lensR, -lensR, lensR * 2, lensR * 2);
 
     // Gravitational Shockwave Rings expanding outwards
     const ringTime = (performance.now() * 0.003) % 1.0;
@@ -1120,14 +1116,6 @@ function drawGigaBlackhole(ctx, x1, y1, x2, y2, midX, midY, chargeRatio = 0, bir
     ctx.arc(0, 0, radius * 0.94, 0, Math.PI * 2);
     ctx.fillStyle = '#000000';
     ctx.fill();
-
-    // Deep Shadow Falloff
-    const shadowFalloff = ctx.createRadialGradient(0, 0, radius * 0.4, 0, 0, radius * 0.94);
-    shadowFalloff.addColorStop(0, '#000000');
-    shadowFalloff.addColorStop(0.85, '#000000');
-    shadowFalloff.addColorStop(1, 'rgba(0, 0, 0, 0.9)');
-    ctx.fillStyle = shadowFalloff;
-    ctx.fill();
     ctx.restore();
 
     // 8. Foreground Accretion Disk (Cutting across front of Event Horizon)
@@ -1156,19 +1144,11 @@ function drawGigaBlackhole(ctx, x1, y1, x2, y2, midX, midY, chargeRatio = 0, bir
     ctx.stroke();
     ctx.restore();
 
-    // 9. Relativistic Doppler Beaming Blinding Glare (Approaching Side Flare)
+    // 9. Relativistic Doppler Beaming Blinding Glare (Pre-baked GPU Sprite Blit)
     ctx.save();
     ctx.rotate(0.12);
     const flareX = -radius * 1.15;
-    const flareGrad = ctx.createRadialGradient(flareX, 0, radius * 0.08, flareX, 0, radius * 1.1);
-    flareGrad.addColorStop(0, '#ffffff');
-    flareGrad.addColorStop(0.25, accColor);
-    flareGrad.addColorStop(0.55, secColor);
-    flareGrad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = flareGrad;
-    ctx.beginPath();
-    ctx.ellipse(flareX, 0, radius * 1.0, radius * 0.48, 0, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.drawImage(glowSpriteCore, flareX - radius, -radius * 0.48, radius * 2.0, radius * 0.96);
     ctx.restore();
 
     // 10. Blinding Razor-Sharp Photon Sphere Rim & Relativistic Arc Spikes
@@ -1506,6 +1486,7 @@ function updateHandTrackingInterpolation(now = performance.now()) {
 // -------------------------------------------------------------
 // Unified Render & GPU HandLandmarker Loop (gesturewatcher architecture)
 // -------------------------------------------------------------
+let lastDetectionTime = 0;
 function render() {
     const now = performance.now();
     const dtSeconds = Math.min(0.05, (now - lastFrameTime) / 1000);
@@ -1513,11 +1494,12 @@ function render() {
 
     dtScale = dtSeconds * 60;
 
-    // 0. Synchronous Zero-Copy GPU Hand Detection on New Video Frames (gesturewatcher pipeline)
+    // 0. Frame-Paced Zero-Copy GPU Hand Detection (~30Hz cadence; OneEuroFilter interpolates at 60Hz)
     if (isCameraActive && handLandmarker && videoElement.readyState >= 2 && videoElement.videoWidth > 0 && !videoElement.paused) {
         const currentVideoTime = videoElement.currentTime;
-        if (currentVideoTime !== lastProcessedVideoTime) {
+        if (currentVideoTime !== lastProcessedVideoTime && (now - lastDetectionTime >= 30)) {
             lastProcessedVideoTime = currentVideoTime;
+            lastDetectionTime = now;
             try {
                 const gpuResult = handLandmarker.detectForVideo(videoElement, now);
                 onHandResults({
@@ -2243,8 +2225,8 @@ async function toggleCamera() {
 // Mouse Control Listeners with Multi-Spell Interactions
 window.addEventListener('mousemove', (e) => {
     if (!enableMouseControl) return;
-    const mouseX = e.clientX / canvas.width;
-    const mouseY = e.clientY / canvas.height;
+    const mouseX = e.clientX / (window.innerWidth || canvas.width);
+    const mouseY = e.clientY / (window.innerHeight || canvas.height);
 
     mouseHand.palm = { x: mouseX, y: mouseY };
     mouseHand.wrist = { x: mouseX, y: Math.min(1.0, mouseY + 0.14) };
@@ -2313,6 +2295,7 @@ colorBtns.forEach(btn => {
         const newColors = PALETTES[activeColorPalette];
         screenFlashColor = newColors[0];
         colorValDisplay.textContent = btn.dataset.color.toUpperCase();
+        rebuildGlowSprites();
         // Immediately recolor all active particles so palette switch is instant
         for (let i = 0; i < particles.length; i++) {
             particles[i].color = newColors[i % newColors.length];
