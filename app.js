@@ -1847,7 +1847,7 @@ async function trackingLoop() {
             lastTrackingStartTime = performance.now();
             try {
                 // Use lightweight 320px width (exceeds MediaPipe's 256x256 internal lite tensor while cutting pixel transfer by 56%)
-                const targetH = Math.round(320 / ((videoElement.videoWidth / videoElement.videoHeight) || (4 / 3)));
+                const targetH = Math.round(320 / ((videoElement.videoWidth / videoElement.videoHeight) || (16 / 9)));
                 if (offCanvas.width !== 320 || offCanvas.height !== targetH) {
                     offCanvas.width = 320;
                     offCanvas.height = targetH;
@@ -1977,12 +1977,12 @@ async function toggleCamera() {
         statusText.textContent = 'Memulai Kamera...';
 
         try {
-            // Request 640x480 @ 30-60 FPS to prevent indoor low-light 15 FPS exposure drop on laptop webcams
+            // Request HD 1280x720 (up to 1080p) — rendered directly via GPU <video> layer while MediaPipe uses 320x180 offCanvas
             webcamStream = await navigator.mediaDevices.getUserMedia({
                 video: {
-                    width: { ideal: 640, max: 1280 },
-                    height: { ideal: 480, max: 720 },
-                    frameRate: { ideal: 60, min: 30 },
+                    width: { ideal: 1280, max: 1920 },
+                    height: { ideal: 720, max: 1080 },
+                    frameRate: { ideal: 30, max: 60 },
                     facingMode: 'user'
                 },
                 audio: false
