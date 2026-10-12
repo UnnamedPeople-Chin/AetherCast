@@ -1,6 +1,6 @@
 :root {
     --bg-dark: #070913;
-    --card-bg: rgba(10, 15, 30, 0.72);
+    --card-bg: rgba(10, 15, 30, 0.84);
     --card-border: rgba(255, 255, 255, 0.1);
     --primary-cyan: #00f2fe;
     --primary-blue: #4facfe;
@@ -63,7 +63,7 @@ body, html {
     gap: 10px;
     background: var(--card-bg);
     border: 1px solid var(--card-border);
-    backdrop-filter: blur(16px);
+    backdrop-filter: blur(8px);
     padding: 6px 14px;
     border-radius: 50px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
@@ -108,7 +108,7 @@ body, html {
     padding: 6px 12px;
     background: var(--card-bg);
     border: 1px solid var(--card-border);
-    backdrop-filter: blur(16px);
+    backdrop-filter: blur(8px);
     border-radius: 50px;
     font-size: 0.75rem;
     font-weight: 600;
@@ -166,7 +166,7 @@ body, html {
     padding: 8px 14px;
     background: var(--card-bg);
     border: 1px solid var(--primary-cyan);
-    backdrop-filter: blur(16px);
+    backdrop-filter: blur(8px);
     border-radius: 50px;
     color: var(--primary-cyan);
     font-weight: 600;
@@ -202,7 +202,7 @@ body, html {
     overflow-y: auto;
     background: var(--card-bg);
     border: 1px solid var(--card-border);
-    backdrop-filter: blur(20px);
+    backdrop-filter: blur(10px);
     border-radius: var(--radius-md);
     padding: 10px 12px;
     display: flex;
@@ -399,7 +399,7 @@ input[type="range"] {
     max-width: calc(100vw - 32px);
     background: var(--card-bg);
     border: 1px solid var(--card-border);
-    backdrop-filter: blur(20px);
+    backdrop-filter: blur(10px);
     border-radius: var(--radius-md);
     padding: 12px;
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);

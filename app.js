@@ -8,11 +8,11 @@ const statusBadge = document.getElementById('status-badge');
 const statusText = document.getElementById('status-text');
 const fpsCounter = document.getElementById('fps-counter');
 
-// Offscreen Canvas for Ultra-Fast MediaPipe WASM Processing (Zero-Lag 480x270)
+// Offscreen Canvas for Ultra-Fast MediaPipe WASM Processing (Zero-Lag 480x270, GPU-Accelerated)
 const offCanvas = document.createElement('canvas');
 offCanvas.width = 480;
 offCanvas.height = 270;
-const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
+const offCtx = offCanvas.getContext('2d');
 
 // Preload & Offscreen Cache for Authentic Doctor Strange Mandala Asset
 const shieldImg = new Image();
@@ -98,7 +98,7 @@ let screenFlashColor = PALETTES[activeColorPalette][0];
 let trackedHands = []; 
 let targetHandsList = [];
 let persistentHandStates = new Map();
-let dualFistState = { wasDualFist: false, charge: 0, birthProgress: 0, cooldownTimer: 0 };
+let dualFistState = { wasDualFist: false, charge: 0, birthProgress: 0, cooldownTimer: 0, lastMidX: 0, lastMidY: 0 };
 let activeCosmicHandId = null; // Single Global Cosmic Orb Authority
 
 // Inter-Hand Cosmic Orb Projectile (Throw & Transfer Engine)
@@ -169,7 +169,7 @@ window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
 // -------------------------------------------------------------
-// Ultra-High Speed Batched Particle & Volumetric Plasma Engine
+// Ultra-High Speed Zero-GC Pooled Particle & Volumetric Plasma Engine
 // -------------------------------------------------------------
 class Particle {
     constructor() {
@@ -210,28 +210,51 @@ class Particle {
 }
 
 let particles = [];
+const particlePool = [];
+const colorBatches = {};
+
+function spawnParticle(originX, originY, speedMultiplier = 1, fixedAngle = null) {
+    // Allow burst headroom up to +350 above ambient targetParticleCount
+    if (particles.length >= targetParticleCount + 350) return null;
+    const p = particlePool.length > 0 ? particlePool.pop() : new Particle();
+    p.reset(originX, originY, speedMultiplier, fixedAngle);
+    particles.push(p);
+    return p;
+}
+
 function maintainParticles() {
     while (particles.length < targetParticleCount) {
-        particles.push(new Particle());
-    }
-    if (particles.length > targetParticleCount) {
-        particles.length = targetParticleCount;
+        spawnParticle();
     }
 }
 
 function drawParticlesBatched(ctx) {
-    const colorBatches = {};
+    for (const color in colorBatches) {
+        colorBatches[color].length = 0;
+    }
     
+    const glowScale = glowLevel === 1 ? 0.65 : (glowLevel === 3 ? 1.45 : 1.0);
+
     for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
         if (!p.update()) {
-            particles.splice(i, 1);
-            continue;
+            if (particles.length <= targetParticleCount) {
+                // Recycle ambient particle in-place with zero array mutation
+                p.reset();
+            } else {
+                // O(1) Swap-and-Pop for burst / excess particles
+                particlePool.push(p);
+                particles[i] = particles[particles.length - 1];
+                particles.pop();
+                continue;
+            }
         }
-        if (!colorBatches[p.color]) {
-            colorBatches[p.color] = [];
+        let batch = colorBatches[p.color];
+        if (!batch) {
+            batch = [];
+            colorBatches[p.color] = batch;
         }
-        colorBatches[p.color].push(p);
+        batch.push(p);
     }
 
     ctx.save();
@@ -239,12 +262,13 @@ function drawParticlesBatched(ctx) {
     
     for (const color in colorBatches) {
         const batch = colorBatches[color];
+        if (batch.length === 0) continue;
         ctx.fillStyle = color;
         ctx.beginPath();
         for (let j = 0; j < batch.length; j++) {
             const p = batch[j];
             const alpha = Math.max(0, p.life / p.maxLife);
-            const r = p.size * alpha;
+            const r = p.size * alpha * glowScale;
             if (r > 0.1) {
                 ctx.moveTo(p.x + r, p.y);
                 ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
@@ -301,13 +325,12 @@ function triggerSupernovaExplosion(x, y, intensity = 1.0) {
     const count = Math.floor(100 * intensity);
     for (let i = 0; i < count; i++) {
         const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
-        const p = new Particle();
-        p.reset(x, y, (Math.random() * 9.5 + 7) * intensity, angle);
-        particles.push(p);
+        spawnParticle(x, y, (Math.random() * 9.5 + 7) * intensity, angle);
     }
 
     const maxRadiusSq = (440 * intensity) * (440 * intensity);
-    particles.forEach(p => {
+    for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
         const dx = p.x - x;
         const dy = p.y - y;
         const distSq = dx * dx + dy * dy;
@@ -317,7 +340,7 @@ function triggerSupernovaExplosion(x, y, intensity = 1.0) {
             p.vx += (dx / d) * force;
             p.vy += (dy / d) * force;
         }
-    });
+    }
 }
 
 function getPersistentState(hand) {
@@ -357,7 +380,8 @@ function drawCosmicEnergyOrb(ctx, x, y, progress = 1.0) {
     const secColor = colors[1] || colors[0];
     const accColor = colors[2] || '#ffffff';
 
-    const radius = 32 * progress;
+    const glowBoost = glowLevel === 1 ? 0.85 : (glowLevel === 3 ? 1.2 : 1.0);
+    const radius = 32 * progress * glowBoost;
 
     ctx.globalCompositeOperation = 'lighter';
 
@@ -413,12 +437,10 @@ function drawCosmicEnergyOrb(ctx, x, y, progress = 1.0) {
     ctx.fill();
 
     // 4. Radiating Anti-Gravity Micro Sparks
-    if (Math.random() < 0.7 && particles.length < targetParticleCount) {
+    if (Math.random() < 0.7) {
         const a = Math.random() * Math.PI * 2;
         const r = radius * (1.1 + Math.random() * 0.6);
-        const p = new Particle();
-        p.reset(x + Math.cos(a) * r, y + Math.sin(a) * r, 1.4);
-        particles.push(p);
+        spawnParticle(x + Math.cos(a) * r, y + Math.sin(a) * r, 1.4);
     }
 
     ctx.restore();
@@ -501,19 +523,18 @@ function updateAndDrawCosmicProjectile(ctx, activeHandsList) {
     // 2. Cosmic Plasma Projectile Core
     drawCosmicEnergyOrb(ctx, curX, curY, 1.15);
 
-    // 3. Stardust Particle Tail
-    if (Math.random() < 0.8 && particles.length < targetParticleCount) {
-        const p = new Particle();
-        p.x = curX + (Math.random() - 0.5) * 16;
-        p.y = curY + (Math.random() - 0.5) * 16;
-        p.vx = (Math.random() - 0.5) * 4 - (curX - cosmicProjectile.startX) * 0.03;
-        p.vy = (Math.random() - 0.5) * 4;
-        p.radius = 2.5 + Math.random() * 3.5;
-        p.color = Math.random() > 0.5 ? mainColor : accColor;
-        p.alpha = 1.0;
-        p.life = 25 + Math.random() * 15;
-        p.maxLife = 40;
-        particles.push(p);
+    // 3. Stardust Particle Tail (using pooled spawnParticle with proper life & size)
+    if (Math.random() < 0.85) {
+        const p = spawnParticle(
+            curX + (Math.random() - 0.5) * 16,
+            curY + (Math.random() - 0.5) * 16,
+            0.65
+        );
+        if (p) {
+            p.vx -= (curX - cosmicProjectile.startX) * 0.015;
+            p.size = 3.0 + Math.random() * 3.0;
+            p.color = Math.random() > 0.5 ? mainColor : accColor;
+        }
     }
     ctx.restore();
 
@@ -528,8 +549,8 @@ function updateAndDrawCosmicProjectile(ctx, activeHandsList) {
                 receiverState.cosmicActive = true;
                 receiverState.cosmicProgress = 1.0;
             }
-            // Arrival impact shockwave & sparkle burst
-            shockwaves.push(new Shockwave(cosmicProjectile.targetX, cosmicProjectile.targetY, secColor, 95));
+            // Arrival impact shockwave & sparkle burst (Fixed argument order: x, y, maxRadius, color, initialWidth)
+            shockwaves.push(new Shockwave(cosmicProjectile.targetX, cosmicProjectile.targetY, 150, secColor, 16));
             triggerSupernovaExplosion(cosmicProjectile.targetX, cosmicProjectile.targetY, 0.65);
         } else {
             // Target hand was lost in flight, detonate gracefully
@@ -539,7 +560,7 @@ function updateAndDrawCosmicProjectile(ctx, activeHandsList) {
 }
 
 // -------------------------------------------------------------
-// Hand Energy Skeleton Renderer
+// Batched Hand Energy Skeleton Renderer (3 Draw Calls vs 45)
 // -------------------------------------------------------------
 function drawHandSkeleton(ctx, rawLandmarks, colors) {
     if (!showSkeleton || !rawLandmarks || rawLandmarks.length === 0) return;
@@ -548,7 +569,10 @@ function drawHandSkeleton(ctx, rawLandmarks, colors) {
     ctx.strokeStyle = colors[0];
     ctx.lineWidth = 2.5;
 
-    HAND_CONNECTIONS.forEach(([i, j]) => {
+    // 1. Batch all 24 bone connections into a single path & stroke
+    ctx.beginPath();
+    for (let k = 0; k < HAND_CONNECTIONS.length; k++) {
+        const [i, j] = HAND_CONNECTIONS[k];
         const p1 = rawLandmarks[i];
         const p2 = rawLandmarks[j];
         if (p1 && p2) {
@@ -556,22 +580,36 @@ function drawHandSkeleton(ctx, rawLandmarks, colors) {
             const y1 = p1.y * canvas.height;
             const x2 = (isMirrored ? 1 - p2.x : p2.x) * canvas.width;
             const y2 = p2.y * canvas.height;
-
-            ctx.beginPath();
             ctx.moveTo(x1, y1);
             ctx.lineTo(x2, y2);
-            ctx.stroke();
         }
-    });
+    }
+    ctx.stroke();
 
-    rawLandmarks.forEach((lm, idx) => {
+    // 2. Batch inner joints
+    ctx.fillStyle = colors[1] || colors[0];
+    ctx.beginPath();
+    for (let idx = 0; idx < rawLandmarks.length; idx++) {
+        if (idx % 4 === 0) continue;
+        const lm = rawLandmarks[idx];
         const x = (isMirrored ? 1 - lm.x : lm.x) * canvas.width;
         const y = lm.y * canvas.height;
-        ctx.beginPath();
-        ctx.arc(x, y, idx % 4 === 0 ? 5 : 3.5, 0, Math.PI * 2);
-        ctx.fillStyle = colors[idx % colors.length];
-        ctx.fill();
-    });
+        ctx.moveTo(x + 3.5, y);
+        ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+    }
+    ctx.fill();
+
+    // 3. Batch wrist & fingertip nodes
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    for (let idx = 0; idx < rawLandmarks.length; idx += 4) {
+        const lm = rawLandmarks[idx];
+        const x = (isMirrored ? 1 - lm.x : lm.x) * canvas.width;
+        const y = lm.y * canvas.height;
+        ctx.moveTo(x + 5, y);
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+    }
+    ctx.fill();
 
     ctx.restore();
 }
@@ -672,14 +710,12 @@ function drawDoctorStrangeShield(ctx, x, y, baseRadius = 150, progress = 1.0) {
     ctx.restore();
 
     // 3. Dense Fiery Embers & Spark Bursts
-    if (Math.random() < 0.7 && particles.length < targetParticleCount) {
+    if (Math.random() < 0.7) {
         const sparkAngle = Math.random() * Math.PI * 2;
         const sparkRadius = radius * (0.8 + Math.random() * 0.35);
         const pX = x + Math.cos(sparkAngle) * sparkRadius;
         const pY = y + Math.sin(sparkAngle) * sparkRadius;
-        const spark = new Particle();
-        spark.reset(pX, pY, 2.2);
-        particles.push(spark);
+        spawnParticle(pX, pY, 2.2);
     }
 
     ctx.restore();
@@ -782,9 +818,7 @@ function drawGigaShield(ctx, x1, y1, x2, y2, midX, midY) {
     for (let b = 0; b < 4; b++) {
         const a = Math.random() * Math.PI * 2;
         const r = radius * (0.7 + Math.random() * 0.5);
-        const p = new Particle();
-        p.reset(midX + Math.cos(a) * r, midY + Math.sin(a) * r, 2.5);
-        particles.push(p);
+        spawnParticle(midX + Math.cos(a) * r, midY + Math.sin(a) * r, 2.5);
     }
 
     ctx.restore();
@@ -1136,13 +1170,9 @@ function drawGigaBlackhole(ctx, x1, y1, x2, y2, midX, midY, chargeRatio = 0, bir
 
     // Continuous Eruption of High-Energy Singularity Sparks
     for (let s = 0; s < 3; s++) {
-        if (particles.length < targetParticleCount) {
-            const sAngle = Math.random() * Math.PI * 2;
-            const sDist = radius * (0.95 + Math.random() * 0.35);
-            const p = new Particle();
-            p.reset(midX + Math.cos(sAngle) * sDist, midY + Math.sin(sAngle) * sDist, 2.4);
-            particles.push(p);
-        }
+        const sAngle = Math.random() * Math.PI * 2;
+        const sDist = radius * (0.95 + Math.random() * 0.35);
+        spawnParticle(midX + Math.cos(sAngle) * sDist, midY + Math.sin(sAngle) * sDist, 2.4);
     }
 
     ctx.restore();
@@ -1191,16 +1221,16 @@ function drawMiniMonitor(ctx) {
 }
 
 // -------------------------------------------------------------
-// Robust Multi-Hand Persistent Tracker (Ghost Grace Period & Adaptive Smoothing)
+// Robust Multi-Hand Persistent Tracker (Strict 1-to-1 Pair Lock & Zero-GC Sync)
 // -------------------------------------------------------------
 function updateHandTrackingInterpolation() {
-    const activeTargets = [...targetHandsList];
-    const maxGhostFrames = 3; // Minimal grace period for instant disappearing when hand leaves
+    const activeTargets = targetHandsList;
+    const maxGhostFrames = 3;
 
     const matchedTargets = new Set();
-    const matchedTracked = new Set();
+    const pairMap = new Map(); // trackedIdx -> targetIdx (guarantees strict 1-to-1 assignment)
 
-    // 1. Greedy Distance-Based Matching
+    // 1. Greedy 1-to-1 Distance-Based Matching
     if (trackedHands.length > 0 && activeTargets.length > 0) {
         let bestDist = Infinity;
         let bestPair = null;
@@ -1215,106 +1245,89 @@ function updateHandTrackingInterpolation() {
             }
         }
 
-        if (bestPair) {
-            matchedTracked.add(bestPair[0]);
+        if (bestPair && bestDist < 0.55) {
+            pairMap.set(bestPair[0], bestPair[1]);
             matchedTargets.add(bestPair[1]);
 
             if (trackedHands.length > 1 && activeTargets.length > 1) {
                 const otherTracked = bestPair[0] === 0 ? 1 : 0;
                 const otherTarget = bestPair[1] === 0 ? 1 : 0;
-                matchedTracked.add(otherTracked);
-                matchedTargets.add(otherTarget);
+                const secondDist = dist(trackedHands[otherTracked].palm, activeTargets[otherTarget].palm);
+                if (secondDist < 0.55) {
+                    pairMap.set(otherTracked, otherTarget);
+                    matchedTargets.add(otherTarget);
+                }
             }
         }
     }
 
-    // 2. Update Matched Hands with Direct 1:1 High-Accuracy Tracking
-    trackedHands.forEach((currentHand, idx) => {
-        if (matchedTracked.has(idx)) {
-            let targetIdx = -1;
-            activeTargets.forEach((t, j) => {
-                if (matchedTargets.has(j)) {
-                    if (trackedHands.length === 1 || activeTargets.length === 1) {
-                        targetIdx = j;
-                    } else {
-                        const d = dist(currentHand.palm, t.palm);
-                        if (targetIdx === -1 || d < dist(currentHand.palm, activeTargets[targetIdx].palm)) {
-                            targetIdx = j;
-                        }
-                    }
-                }
-            });
+    // 2. Update Matched Hands with Direct 1:1 High-Accuracy Tracking (Zero Object Allocations)
+    for (let idx = 0; idx < trackedHands.length; idx++) {
+        const currentHand = trackedHands[idx];
+        const targetIdx = pairMap.get(idx);
 
-            if (targetIdx !== -1) {
-                const target = activeTargets[targetIdx];
-                currentHand.lostFrames = 0;
-                currentHand.trackedFrames = (currentHand.trackedFrames || 0) + 1;
+        if (targetIdx !== undefined) {
+            const target = activeTargets[targetIdx];
+            currentHand.lostFrames = 0;
+            currentHand.trackedFrames = (currentHand.trackedFrames || 0) + 1;
 
-                // 1:1 Direct High-Accuracy Positional Tracking (Zero Latency & Snappy Response)
-                currentHand.palm.x = target.palm.x;
-                currentHand.palm.y = target.palm.y;
-                currentHand.wrist.x = target.wrist.x;
-                currentHand.wrist.y = target.wrist.y;
+            // In-place coordinate updates (Zero GC pressure at 144 FPS)
+            currentHand.palm.x = target.palm.x;
+            currentHand.palm.y = target.palm.y;
+            currentHand.wrist.x = target.wrist.x;
+            currentHand.wrist.y = target.wrist.y;
 
-                // 1:1 Instant Fingertips
-                if (target.fingertips) {
-                    currentHand.fingertips = target.fingertips.map(tip => ({ x: tip.x, y: tip.y }));
-                }
-
-                // 1:1 Instant Skeleton Landmarks
-                if (target.rawLandmarks) {
-                    currentHand.rawLandmarks = target.rawLandmarks.map(lm => ({ x: lm.x, y: lm.y, z: lm.z }));
-                }
-
-                // Instant Gesture Precision (Zero Delay Reaction)
-                currentHand.isFist = target.isFist;
-                currentHand.isShieldTouch = target.isShieldTouch;
-                currentHand.isOpenPalm = target.isOpenPalm;
-                currentHand.isPinchTap = target.isPinchTap;
+            if (target.fingertips) {
+                currentHand.fingertips = target.fingertips;
             }
+            if (target.rawLandmarks) {
+                currentHand.rawLandmarks = target.rawLandmarks;
+            }
+
+            currentHand.isFist = target.isFist;
+            currentHand.isShieldTouch = target.isShieldTouch;
+            currentHand.isOpenPalm = target.isOpenPalm;
+            currentHand.isPinchTap = target.isPinchTap;
         } else {
-            // Hand not detected in this frame: use ghost grace period (prevent instant disappearing)
             currentHand.lostFrames = (currentHand.lostFrames || 0) + 1;
             currentHand.trackedFrames = 0;
         }
-    });
+    }
 
     // 3. Remove hands that have exceeded the ghost grace period and cleanup their persistent state
-    trackedHands = trackedHands.filter(h => {
+    for (let i = trackedHands.length - 1; i >= 0; i--) {
+        const h = trackedHands[i];
         if ((h.lostFrames || 0) >= maxGhostFrames) {
             persistentHandStates.delete(`hand_${h.id}`);
             if (activeCosmicHandId === h.id) {
                 activeCosmicHandId = null;
             }
-            return false;
+            trackedHands.splice(i, 1);
         }
-        return true;
-    });
+    }
 
     // 4. Register new incoming targets that weren't matched
-    activeTargets.forEach((target, j) => {
+    for (let j = 0; j < activeTargets.length; j++) {
         if (!matchedTargets.has(j) && trackedHands.length < 2) {
-            const usedIds = new Set(trackedHands.map(h => h.id));
-            const newId = usedIds.has(0) ? 1 : 0;
+            const target = activeTargets[j];
+            const usedId0 = trackedHands.length > 0 && trackedHands[0].id === 0;
+            const newId = usedId0 ? 1 : 0;
 
             trackedHands.push({
                 id: newId,
                 lostFrames: 0,
                 trackedFrames: 1,
-                palm: { ...target.palm },
-                wrist: { ...target.wrist },
-                fingertips: target.fingertips.map(f => ({ ...f })),
-                rawLandmarks: target.rawLandmarks ? target.rawLandmarks.map(lm => ({ ...lm })) : null,
+                palm: { x: target.palm.x, y: target.palm.y },
+                wrist: { x: target.wrist.x, y: target.wrist.y },
+                fingertips: target.fingertips,
+                rawLandmarks: target.rawLandmarks,
                 isFist: target.isFist,
                 isOpenPalm: target.isOpenPalm,
                 isShieldTouch: target.isShieldTouch,
-                isPinchTap: target.isPinchTap,
-                fistConfidence: target.isFist ? 3 : 0,
-                shieldConfidence: target.isShieldTouch ? 3 : 0,
-                openPalmConfidence: target.isOpenPalm ? 3 : 0
+                isPinchTap: target.isPinchTap
             });
         }
-    });
+    }
 }
 
 // -------------------------------------------------------------
@@ -1399,6 +1412,8 @@ function render() {
                     isDualFist = true;
                     dualMidX = (p1.x + p2.x) / 2;
                     dualMidY = (p1.y + p2.y) / 2;
+                    dualFistState.lastMidX = dualMidX;
+                    dualFistState.lastMidY = dualMidY;
                 } 
                 // Giga Shield: Both hands form Doctor Strange Shield Touch together!
                 // Or palms pressed close together in front (< 180px)
@@ -1434,18 +1449,18 @@ function render() {
         drawGigaBlackhole(ctx, p1.x, p1.y, p2.x, p2.y, dualMidX, dualMidY, dualFistState.charge, dualFistState.birthProgress);
 
         if (dualFistState.birthProgress >= 0.8) {
-            particles.forEach(p => {
+            for (let i = 0; i < particles.length; i++) {
+                const p = particles[i];
                 const dx = dualMidX - p.x;
                 const dy = dualMidY - p.y;
                 const distSq = dx * dx + dy * dy;
                 if (distSq > 25 && distSq < 250000) {
-                    const d = Math.sqrt(distSq);
                     const spiralAngle = Math.atan2(dy, dx) + 0.45;
                     const pull = (2.8 + dualFistState.charge * 4.5) * dtScale;
                     p.vx += Math.cos(spiralAngle) * pull;
                     p.vy += Math.sin(spiralAngle) * pull;
                 }
-            });
+            }
         }
 
         if (dualFistState.charge >= 1.0) {
@@ -1458,7 +1473,11 @@ function render() {
     } else {
         if (dualFistState.wasDualFist) {
             if (dualFistState.charge >= 0.5) {
-                triggerSupernovaExplosion(dualMidX || (canvas.width / 2), dualMidY || (canvas.height / 2), 2.2);
+                triggerSupernovaExplosion(
+                    dualFistState.lastMidX || (canvas.width / 2),
+                    dualFistState.lastMidY || (canvas.height / 2),
+                    2.2
+                );
                 dualFistState.cooldownTimer = 3.0;
             }
         }
@@ -1788,12 +1807,19 @@ function onHandResults(results) {
 }
 
 // -------------------------------------------------------------
-// DECOUPLED ASYNC MEDIAPIPE DETECTION LOOP (Crash-Proof & Watchdog Protected)
+// DECOUPLED ASYNC MEDIAPIPE DETECTION LOOP (Frame-Deduplicated & Watchdog Protected)
 // -------------------------------------------------------------
 let isProcessingTracking = false;
 let lastTrackingStartTime = 0;
+let trackingTimerId = null;
+let lastProcessedVideoTime = -1;
 
 async function trackingLoop() {
+    if (trackingTimerId) {
+        clearTimeout(trackingTimerId);
+        trackingTimerId = null;
+    }
+
     if (isCameraActive && videoElement.readyState >= 2 && handsDetector && videoElement.videoWidth > 0 && !videoElement.paused) {
         // Safety Watchdog: If previous send took more than 800ms, force unblock
         if (isProcessingTracking && performance.now() - lastTrackingStartTime > 800) {
@@ -1801,8 +1827,11 @@ async function trackingLoop() {
             isProcessingTracking = false;
         }
 
-        if (!isProcessingTracking) {
+        // Only run WASM inference when the webcam has produced a genuinely new video frame!
+        const currentVideoTime = videoElement.currentTime;
+        if (!isProcessingTracking && currentVideoTime !== lastProcessedVideoTime) {
             isProcessingTracking = true;
+            lastProcessedVideoTime = currentVideoTime;
             lastTrackingStartTime = performance.now();
             try {
                 // Keep correct aspect ratio for detection (only resize when changed)
@@ -1827,7 +1856,7 @@ async function trackingLoop() {
         }
     }
     if (isCameraActive) {
-        setTimeout(trackingLoop, 10);
+        trackingTimerId = setTimeout(trackingLoop, 12);
     }
 }
 
@@ -1890,6 +1919,11 @@ function initMediaPipe() {
 // WebCam Initialization with Stream Recovery
 async function toggleCamera() {
     if (isCameraActive) {
+        if (trackingTimerId) {
+            clearTimeout(trackingTimerId);
+            trackingTimerId = null;
+        }
+        lastProcessedVideoTime = -1;
         if (webcamStream) {
             webcamStream.getTracks().forEach(track => track.stop());
             webcamStream = null;
@@ -1939,6 +1973,7 @@ async function toggleCamera() {
 
             isCameraActive = true;
             cameraStallCounter = 0;
+            lastProcessedVideoTime = -1;
             btnWebcam.querySelector('span').textContent = 'Matikan Webcam';
             btnWebcam.classList.remove('secondary');
             btnWebcam.classList.add('primary');
@@ -1978,8 +2013,13 @@ window.addEventListener('mousedown', (e) => {
     if (e.button === 0) {
         // Left Click: Pinch / Toggle Cosmic Orb
         mouseHand.isPinchTap = true;
+    } else if (e.button === 1) {
+        // Middle Click (Hold): Charge Gargantua Blackhole
+        e.preventDefault();
+        mouseHand.isFist = true;
+        mouseHand.isShieldTouch = false;
     } else if (e.button === 2) {
-        // Right Click: Trigger Doctor Strange Shield
+        // Right Click: Toggle Doctor Strange Shield
         mouseHand.isShieldTouch = !mouseHand.isShieldTouch;
     }
 });
@@ -1988,6 +2028,8 @@ window.addEventListener('mouseup', (e) => {
     if (!enableMouseControl) return;
     if (e.button === 0) {
         mouseHand.isPinchTap = false;
+    } else if (e.button === 1) {
+        mouseHand.isFist = false;
     }
 });
 
@@ -2019,8 +2061,13 @@ colorBtns.forEach(btn => {
         colorBtns.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         activeColorPalette = btn.dataset.color;
-        screenFlashColor = PALETTES[activeColorPalette][0];
+        const newColors = PALETTES[activeColorPalette];
+        screenFlashColor = newColors[0];
         colorValDisplay.textContent = btn.dataset.color.toUpperCase();
+        // Immediately recolor all active particles so palette switch is instant
+        for (let i = 0; i < particles.length; i++) {
+            particles[i].color = newColors[i % newColors.length];
+        }
     });
 });
 
@@ -2070,10 +2117,12 @@ btnMouse.addEventListener('click', () => {
 });
 
 btnClear.addEventListener('click', () => {
-    particles = [];
-    shockwaves = [];
-    if (mouseHand.trail) mouseHand.trail = [];
-    trackedHands.forEach(h => { if (h.trail) h.trail = []; });
+    while (particles.length > 0) {
+        particlePool.push(particles.pop());
+    }
+    shockwaves.length = 0;
+    if (mouseHand.trail) mouseHand.trail.length = 0;
+    trackedHands.forEach(h => { if (h.trail) h.trail.length = 0; });
 });
 
 btnToggleGuide.addEventListener('click', () => {
