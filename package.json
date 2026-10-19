@@ -1,20 +1,26 @@
 {
   "name": "aethercast",
   "version": "1.0.0",
-  "description": "AetherCast Hand Tracking Particle Sandbox Desktop Application",
+  "description": "AetherCast - High-Performance Realtime GPU Hand-Tracking Particle Sandbox",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "dev": "electron ."
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/UnnamedPeople-Chin/AetherCast.git"
+  },
   "keywords": [
+    "aethercast",
     "mediapipe",
     "hand-tracking",
-    "particle",
-    "sandbox",
-    "electron"
+    "particle-physics",
+    "interactive-sandbox",
+    "electron",
+    "webcam-gestures"
   ],
-  "author": "Antigravity",
+  "author": "UnnamedPeople-Chin",
   "license": "MIT",
   "devDependencies": {
     "electron": "^28.2.0"

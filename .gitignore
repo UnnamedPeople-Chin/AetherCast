@@ -1,7 +1,18 @@
+# Dependencies
 node_modules/
-.DS_Store
+package-lock.json
+
+# Builds & Outputs
+dist/
+build/
 *.log
+
+# Environment & Local Configuration
+.env
+.env.local
+.DS_Store
+Thumbs.db
+
+# IDE & Editor files
 .vscode/
-Spiderman/
-*.zip
-*.fbx
+.idea/
