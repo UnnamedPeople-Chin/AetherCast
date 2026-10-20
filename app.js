@@ -662,6 +662,7 @@ function getPersistentState(hand) {
             cosmicProgress: 0,
             cosmicActive: false,
             wasPinchTap: false,
+            pinchHandled: false,
             pinchReleaseFrames: 20,
             shieldProgress: 0
         };
@@ -860,6 +861,16 @@ function drawHandSkeleton(ctx, rawLandmarks, colors) {
     ctx.strokeStyle = colors[0];
     ctx.lineWidth = 2.5;
 
+    const camW = (videoElement && videoElement.videoWidth) ? videoElement.videoWidth : 1280;
+    const camH = (videoElement && videoElement.videoHeight) ? videoElement.videoHeight : 720;
+    const winW = canvas.width || window.innerWidth;
+    const winH = canvas.height || window.innerHeight;
+
+    const getScreenPt = (p) => {
+        const m = mapCameraToViewport(p.x, p.y, camW, camH, winW, winH, isMirrored);
+        return { x: m.x * winW, y: m.y * winH };
+    };
+
     // 1. Batch all 24 bone connections into a single path & stroke
     ctx.beginPath();
     for (let k = 0; k < HAND_CONNECTIONS.length; k++) {
@@ -867,12 +878,10 @@ function drawHandSkeleton(ctx, rawLandmarks, colors) {
         const p1 = rawLandmarks[i];
         const p2 = rawLandmarks[j];
         if (p1 && p2) {
-            const x1 = (isMirrored ? 1 - p1.x : p1.x) * canvas.width;
-            const y1 = p1.y * canvas.height;
-            const x2 = (isMirrored ? 1 - p2.x : p2.x) * canvas.width;
-            const y2 = p2.y * canvas.height;
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(x2, y2);
+            const pt1 = getScreenPt(p1);
+            const pt2 = getScreenPt(p2);
+            ctx.moveTo(pt1.x, pt1.y);
+            ctx.lineTo(pt2.x, pt2.y);
         }
     }
     ctx.stroke();
@@ -882,11 +891,9 @@ function drawHandSkeleton(ctx, rawLandmarks, colors) {
     ctx.beginPath();
     for (let idx = 0; idx < rawLandmarks.length; idx++) {
         if (idx % 4 === 0) continue;
-        const lm = rawLandmarks[idx];
-        const x = (isMirrored ? 1 - lm.x : lm.x) * canvas.width;
-        const y = lm.y * canvas.height;
-        ctx.moveTo(x + 3.5, y);
-        ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+        const pt = getScreenPt(rawLandmarks[idx]);
+        ctx.moveTo(pt.x + 3.5, pt.y);
+        ctx.arc(pt.x, pt.y, 3.5, 0, Math.PI * 2);
     }
     ctx.fill();
 
@@ -894,11 +901,9 @@ function drawHandSkeleton(ctx, rawLandmarks, colors) {
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
     for (let idx = 0; idx < rawLandmarks.length; idx += 4) {
-        const lm = rawLandmarks[idx];
-        const x = (isMirrored ? 1 - lm.x : lm.x) * canvas.width;
-        const y = lm.y * canvas.height;
-        ctx.moveTo(x + 5, y);
-        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        const pt = getScreenPt(rawLandmarks[idx]);
+        ctx.moveTo(pt.x + 5, pt.y);
+        ctx.arc(pt.x, pt.y, 5, 0, Math.PI * 2);
     }
     ctx.fill();
 
@@ -1521,7 +1526,7 @@ class OneEuroFilter {
 }
 
 class OneEuroLandmarkFilter {
-    constructor(minCutoff = 1.5, beta = 24.0, dCutoff = 1.0) {
+    constructor(minCutoff = 1.2, beta = 35.0, dCutoff = 1.0) {
         this.fx = new OneEuroFilter(minCutoff, beta, dCutoff);
         this.fy = new OneEuroFilter(minCutoff, beta, dCutoff);
     }
@@ -1533,8 +1538,8 @@ class OneEuroLandmarkFilter {
 }
 
 // Hysteresis Thresholds (Schmitt Trigger — prevents gesture boundary flicker)
-const PINCH_ON = 0.23;
-const PINCH_OFF = 0.33;
+const PINCH_ON = 0.38;
+const PINCH_OFF = 0.50;
 const SHIELD_ON = 0.35;
 const SHIELD_OFF = 0.46;
 const FIST_EXT_ENTER = 1.05;
@@ -1549,18 +1554,27 @@ function applyFilteredLandmarksAndClassify(hand, rawLandmarks, timestampMs) {
     hand.rawLandmarks = hand.filteredLandmarks;
 
     const flm = hand.filteredLandmarks;
-    const mirrorX = (x) => (isMirrored ? 1 - x : x);
+    const camW = (videoElement && videoElement.videoWidth) ? videoElement.videoWidth : 1280;
+    const camH = (videoElement && videoElement.videoHeight) ? videoElement.videoHeight : 720;
+    const winW = canvas.width || window.innerWidth;
+    const winH = canvas.height || window.innerHeight;
 
-    hand.wrist.x = mirrorX(flm[0].x);
-    hand.wrist.y = flm[0].y;
-    hand.palm.x = mirrorX(flm[9].x);
-    hand.palm.y = flm[9].y;
+    const mapCoord = (normX, normY) => mapCameraToViewport(normX, normY, camW, camH, winW, winH, isMirrored);
+
+    const mappedWrist = mapCoord(flm[0].x, flm[0].y);
+    hand.wrist.x = mappedWrist.x;
+    hand.wrist.y = mappedWrist.y;
+
+    const mappedPalm = mapCoord(flm[9].x, flm[9].y);
+    hand.palm.x = mappedPalm.x;
+    hand.palm.y = mappedPalm.y;
 
     const tipIndices = [4, 8, 12, 16, 20];
     for (let t = 0; t < 5; t++) {
         const lm = flm[tipIndices[t]];
-        hand.fingertips[t].x = mirrorX(lm.x);
-        hand.fingertips[t].y = lm.y;
+        const mappedTip = mapCoord(lm.x, lm.y);
+        hand.fingertips[t].x = mappedTip.x;
+        hand.fingertips[t].y = mappedTip.y;
         hand.fingertips[t].z = lm.z;
     }
 
@@ -1587,22 +1601,25 @@ function applyFilteredLandmarksAndClassify(hand, rawLandmarks, timestampMs) {
     const isFist = extendedCount === 0;
     const isOpenPalm = extendedCount >= 2 && !isFist;
 
-    // Scale-Invariant Palm Metric
+    // Scale-Invariant Palm Metric (in camera space)
     const handScale = Math.max(0.08, dist(wrist, middleMcp));
 
-    // 2. Doctor Strange Shield Gesture with Hysteresis
+    // 2. Pinch Tap Gesture with Hysteresis (Thumb Tip to Index Tip) - Evaluate First!
+    const pinchDist = dist(thumbTip, indexTip);
+    const normalizedPinchDist = pinchDist / handScale;
+    const pinchThresh = hand.isPinchTap ? PINCH_OFF : PINCH_ON;
+    const pinchRawMax = hand.isPinchTap ? 0.085 : 0.070;
+    const isPinchTap = !isFist && (normalizedPinchDist < pinchThresh || pinchDist < 0.050) && pinchDist < pinchRawMax;
+
+    // 3. Doctor Strange Shield Gesture with Hysteresis (Index Tip & Middle Tip touch)
+    // CRITICAL: Cannot be shield if thumb is pinched to index!
     const fingerTouchDist = dist(indexTip, middleTip);
     const normalizedTouchDist = fingerTouchDist / handScale;
     const shieldThresh = hand.isShieldTouch ? SHIELD_OFF : SHIELD_ON;
     const shieldRawMax = hand.isShieldTouch ? 0.08 : 0.06;
-    const isShieldTouch = (normalizedTouchDist < shieldThresh || fingerTouchDist < shieldRawMax) && indexExt && middleExt && !isFist;
-
-    // 3. Pinch Tap Gesture with Hysteresis
-    const pinchDist = dist(thumbTip, indexTip);
-    const normalizedPinchDist = pinchDist / handScale;
-    const pinchThresh = hand.isPinchTap ? PINCH_OFF : PINCH_ON;
-    const pinchRawMax = hand.isPinchTap ? 0.062 : 0.046;
-    const isPinchTap = normalizedPinchDist < pinchThresh && pinchDist < pinchRawMax && !isFist && !isShieldTouch;
+    const isShieldTouch = !isFist && !isPinchTap && indexExt && middleExt && 
+                          (normalizedTouchDist < shieldThresh || fingerTouchDist < shieldRawMax) && 
+                          pinchDist > 0.065;
 
     hand.isFist = isFist;
     hand.isOpenPalm = isOpenPalm;
@@ -1712,7 +1729,7 @@ function updateHandTrackingInterpolation(now = performance.now()) {
                     { x: 0, y: 0, z: 0 },
                     { x: 0, y: 0, z: 0 }
                 ],
-                lmFilters: Array.from({ length: 21 }, () => new OneEuroLandmarkFilter(1.5, 24.0, 1.0)),
+                lmFilters: Array.from({ length: 21 }, () => new OneEuroLandmarkFilter(1.2, 35.0, 1.0)),
                 filteredLandmarks: Array.from({ length: 21 }, () => ({ x: 0, y: 0, z: 0 })),
                 rawLandmarks: target.rawLandmarks,
                 isFist: !!target.isFist,
@@ -1968,15 +1985,15 @@ function render() {
         }
 
         // 2. Pinch Tap Toggle / Summon State for Floating Cosmic Orb:
-        // Must be stable for >= 4 frames, no other active spell, and released for at least 3 frames
+        // Level-safe latch: triggers instantly on pinch, holds until release
         if (!hand.isPinchTap) {
-            pState.pinchReleaseFrames = (pState.pinchReleaseFrames || 0) + 1;
+            pState.pinchHandled = false;
         }
 
-        const canTriggerPinch = (hand.trackedFrames || 0) >= 4 && !isOtherSpellActive && (pState.pinchReleaseFrames || 0) >= 3;
+        const canTriggerPinch = (hand.trackedFrames || 0) >= 2 && !isOtherSpellActive;
 
-        if (hand.isPinchTap && !pState.wasPinchTap && canTriggerPinch) {
-            pState.pinchReleaseFrames = 0;
+        if (hand.isPinchTap && !pState.pinchHandled && canTriggerPinch) {
+            pState.pinchHandled = true;
             if (activeCosmicHandId === hand.id) {
                 // Toggle OFF on this hand
                 pState.cosmicActive = false;
@@ -1994,7 +2011,9 @@ function render() {
                     // Source hand is gone, activate here directly
                     persistentHandStates.forEach(s => { s.cosmicActive = false; s.cosmicProgress = 0; });
                     pState.cosmicActive = true;
+                    pState.cosmicProgress = 0.45;
                     activeCosmicHandId = hand.id;
+                    soundEngine.playCosmicThrow(0.4);
                 }
             } else if (!cosmicProjectile.active) {
                 // No other hand has the orb: activate directly on this hand!
@@ -2003,14 +2022,16 @@ function render() {
                     otherState.cosmicProgress = 0;
                 });
                 pState.cosmicActive = true;
+                pState.cosmicProgress = 0.45;
                 activeCosmicHandId = hand.id;
+                soundEngine.playCosmicThrow(0.4);
             }
         }
         pState.wasPinchTap = hand.isPinchTap;
 
         // Only progress and draw cosmic orb if this hand is the single active hand, no projectile in flight, and no other spell is active
         if (activeCosmicHandId === hand.id && pState.cosmicActive && !isOtherSpellActive && !cosmicProjectile.active) {
-            pState.cosmicProgress = Math.min(1.0, pState.cosmicProgress + 0.18 * dtScale);
+            pState.cosmicProgress = Math.min(1.0, pState.cosmicProgress + 0.25 * dtScale);
         } else {
             pState.cosmicProgress = 0;
             pState.cosmicActive = false;
@@ -2193,15 +2214,16 @@ function onHandResults(results) {
             // Scale-Invariant Metric (Normalizes based on hand distance to camera)
             const handScale = Math.max(0.08, dist(wrist, palmCenter));
 
-            // Shield Gesture: Index & Middle Fingers Extended & Touching Together (✌️ with fingers together)
-            const fingerTouchDist = dist(indexTip, middleTip);
-            const normalizedTouchDist = fingerTouchDist / handScale;
-            const isShieldTouch = (normalizedTouchDist < 0.35 || fingerTouchDist < 0.06) && indexExt && middleExt && !isFist;
-
-            // Pinch Gesture: Thumb Tip touches Index Tip with deliberate precision
+            // Pinch Gesture: Thumb Tip touches Index Tip with deliberate precision (Evaluated first to avoid Shield conflict)
             const pinchDist = dist(thumbTip, indexTip);
             const normalizedPinchDist = pinchDist / handScale;
-            const isPinchTap = normalizedPinchDist < 0.22 && pinchDist < 0.045 && !isFist && !isShieldTouch;
+            const isPinchTap = !isFist && (normalizedPinchDist < 0.38 || pinchDist < 0.050) && pinchDist < 0.070;
+
+            // Shield Gesture: Index & Middle Fingers Extended & Touching Together (✌️ with fingers together)
+            // Cannot be shield if thumb is pinched to index!
+            const fingerTouchDist = dist(indexTip, middleTip);
+            const normalizedTouchDist = fingerTouchDist / handScale;
+            const isShieldTouch = !isFist && !isPinchTap && (normalizedTouchDist < 0.38 || fingerTouchDist < 0.070) && indexExt && middleExt && pinchDist > 0.065;
 
             targetHandsList.push({
                 wrist,
